@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Index
+{% endblock %}
+
+{% block main %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th class="text-start">Symbol</th>
+                <th class="text-end">Shares</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+        <!-- Display data in table -->
+            {% for symbol in symbols %}
+                <tr>
+                    <td class="text-start">{{symbol}}</td>
+                    <td class="text-end">{{shares[symbol]}}</td>
+                    <td class="text-end"> {{prices[symbol] | usd}}</td>
+                    <td class="text-end"> {{(shares[symbol] * prices[symbol]) | usd }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td class="border-0 fw-bold text-end" colspan="3">Cash</td>
+                <td class="border-0 text-end">{{cash | usd }}</td>
+            </tr>
+            <tr>
+                <td class="border-0 fw-bold text-end" colspan="3">TOTAL</td>
+                <td class="border-0 text-end">{{value | usd}}</td>
+            </tr>
+        </tfoot>
+    </table>
+{% endblock %}
