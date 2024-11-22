@@ -5,6 +5,7 @@ from flask_socketio import SocketIO, emit
 import uuid
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
+from functools import wraps
 
 # Configure application
 app = Flask(__name__)
@@ -16,6 +17,22 @@ lobbies = []
 
 # Configure cs50 to use SQLite database
 db = SQL("sqlite:///gamefiles.db")
+
+# Require login -- taken from Finance pset
+def login_required(f):
+    """
+    Decorate routes to require login.
+
+    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("user_id") is None:
+            return redirect("/login")
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 @app.after_request
 def after_request(response):
@@ -94,6 +111,7 @@ def register():
         return render_template("register.html")
     
 @app.route("/play", methods=["GET", "POST"])
+@login_required
 def game():
     return render_template("play.html", lobbies = lobbies)
 
@@ -112,6 +130,7 @@ def settings():
         return render_template("settings.html")
     
 @app.route("/create_lobby", methods=["GET", "POST"])
+@login_required
 def create_lobby():
     if request.method == "POST":
         lobby_name = request.form['lobby_name']
@@ -131,6 +150,7 @@ def create_lobby():
 
 
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
+@login_required
 def join_lobby(lobby_id):
     for lobby in lobbies:
         if lobby['id'] == lobby_id:
@@ -158,6 +178,7 @@ def join_lobby(lobby_id):
     return redirect(url_for('play'))
 
 @app.route("/mark_ready/<lobby_id>", methods=["GET", "POST"])
+@login_required
 def mark_ready(lobby_id):
     for lobby in lobbies:
         if lobby['id'] == lobby_id:
