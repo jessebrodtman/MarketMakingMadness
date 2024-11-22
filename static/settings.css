@@ -1,0 +1,86 @@
+/* General Settings Container */
+.settings-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    text-align: center;
+}
+
+/* User Information Section */
+.user-info {
+    margin-bottom: 2rem;
+}
+
+.user-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #DC143C; /* Crimson */
+    margin-bottom: 1rem;
+}
+
+/* Form Styles */
+.settings-form {
+    margin-top: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+label {
+    display: block;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #495057; /* Neutral text */
+    margin-bottom: 0.5rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid #CED4DA; /* Light border */
+    border-radius: 5px;
+}
+
+.form-control:focus {
+    border-color: #DC143C; /* Crimson */
+    box-shadow: 0 0 5px rgba(220, 20, 60, 0.25); /* Crimson glow */
+}
+
+/* Password Field */
+.password-field {
+    position: relative;
+}
+
+.password-field .toggle-password {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6C757D; /* Neutral gray */
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+/* Submit Button */
+.btn-primary {
+    background-color: #DC143C; /* Crimson */
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+    background-color: #9B0F30; /* Darker Crimson */
+}

@@ -1,7 +1,7 @@
 /* Hero Section */
 .hero-section {
-    background-color: #007bff;
-    color: #fff;
+    background-color: #DC143C; /* Crimson */
+    color: #fff; /* White text */
     padding: 3rem 1rem;
     text-align: center;
 }
@@ -25,13 +25,13 @@
     text-align: center;
     border-radius: 8px;
     padding: 2rem;
-    background: linear-gradient(120deg, #f8f9fa, #e9ecef);
+    background: linear-gradient(120deg, #F5F5F5, #E9ECEF); /* Light Gray gradients */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .dashboard-title {
     font-size: 1.25rem;
-    color: #495057;
+    color: #2C2C2C; /* Deep Charcoal */
     margin-bottom: 0.5rem;
 }
 
@@ -39,48 +39,49 @@
     font-size: 2rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
+    color: #DC143C; /* Crimson */
 }
 
 .dashboard-change {
     font-size: 0.9rem;
-    color: #28a745;
+    color: #28a745; /* Green for positive changes */
 }
 
 /* How It Works Section */
 .how-it-works-section {
-    background-color: #f8f9fa;
+    background-color: #F5F5F5; /* Light Gray */
     padding: 3rem 0;
 }
 
 .how-it-works-card {
     text-align: center;
     padding: 2rem;
-    background-color: #fff;
+    background-color: #fff; /* White card background */
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .how-it-works-card h3 {
     font-size: 1.25rem;
-    color: #495057;
+    color: #2C2C2C; /* Deep Charcoal */
     margin-bottom: 1rem;
 }
 
 .how-it-works-card p {
     font-size: 1rem;
-    color: #6c757d;
+    color: #6c757d; /* Neutral text for descriptions */
 }
 
 /* About Us Section */
 .about-us-section {
     padding: 3rem 0;
-    background-color: #fff;
+    background-color: #fff; /* White background */
 }
 
 .about-block {
     text-align: center;
-    background-color: #f8f9fa;
-    border: 1px solid #e3e3e3;
+    background-color: #F5F5F5; /* Light Gray */
+    border: 1px solid #E3E3E3; /* Subtle border */
     border-radius: 8px;
     padding: 2rem;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -92,15 +93,17 @@
     height: 120px;
     object-fit: cover;
     margin-bottom: 1rem;
+    border: 3px solid #DC143C; /* Crimson border */
 }
 
 .about-name {
     font-size: 1.25rem;
     font-weight: 600;
+    color: #DC143C; /* Crimson */
     margin-bottom: 0.5rem;
 }
 
 .about-description {
     font-size: 1rem;
-    color: #6c757d;
+    color: #6c757d; /* Neutral text for descriptions */
 }

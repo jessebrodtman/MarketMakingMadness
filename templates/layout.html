@@ -26,12 +26,12 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                {% if session["user_id"] %}
-                <!-- Logged-In Navigation -->
-                <ul class="navbar-nav">
+                <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link active" aria-current="page" href="/">Home</a>
                     </li>
+                    {% if session["user_id"] %}
+                    <!-- Logged-In Navigation -->
                     <li class="nav-item">
                         <a class="nav-link" href="/game">Game</a>
                     </li>
@@ -41,18 +41,24 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/settings">Account Settings</a>
                     </li>
+                    {% endif %}
                 </ul>
-                {% else %}
-                <!-- Guest Navigation -->
                 <ul class="navbar-nav">
+                    {% if session["user_id"] %}
+                    <!-- Logout Button -->
                     <li class="nav-item">
-                        <a class="nav-link" href="/login">Log In</a>
+                        <a class="nav-link btn btn-outline-danger" href="/logout">Logout</a>
+                    </li>
+                    {% else %}
+                    <!-- Login/Register Buttons -->
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-outline-primary me-2" href="/login">Log In</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/register">Register</a>
+                        <a class="nav-link btn btn-primary" href="/register">Register</a>
                     </li>
+                    {% endif %}
                 </ul>
-                {% endif %}
             </div>
         </div>
     </nav>
