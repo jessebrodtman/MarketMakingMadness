@@ -136,6 +136,9 @@ def join_lobby(lobby_id):
         if lobby['id'] == lobby_id:
             # Check if the player is already in the lobby
             player_name = session.get('username')
+            if not player_name:
+                return redirect(url_for('login'))  # Redirect to login if no username is in session
+
             if not any(player['name'] == player_name for player in lobby['players']):
                 # Add player to the lobby
                 lobby['players'].append({'name': player_name, 'ready': False})
