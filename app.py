@@ -52,6 +52,7 @@ def login():
 
         # Remember which user has logged in
         session["user_id"] = rows[0]["id"]
+        session["username"] = rows[0]["username"]
 
         # Redirect user to home page
         return redirect("/")
@@ -112,30 +113,57 @@ def settings():
     
 @app.route("/create_lobby", methods=["GET", "POST"])
 def create_lobby():
-    lobby_name = request.form['lobby_name']
-    max_players = request.form['max_players']
-    new_lobby = {
-        'id': str(uuid.uuid4()),
-        'name': lobby_name,
-        'max_players': max_players,
-        'current_players': 0,
-        'status': 'waiting'
-    }
-    lobbies.append(new_lobby)
-    print(lobbies)
-    socketio.emit('lobby_update', new_lobby)
-    return redirect(url_for('play'))
+    if request.method == "POST":
+        lobby_name = request.form['lobby_name']
+        max_players = request.form['max_players']
+        new_lobby = {
+            'id': str(uuid.uuid4()),
+            'name': lobby_name,
+            'max_players': max_players,
+            'current_players': 0,
+            'status': 'waiting',
+            'players': []
+        }
+        lobbies.append(new_lobby)
+        socketio.emit('lobby_update', new_lobby)
+        return redirect(url_for('join_lobby', lobby_id=new_lobby['id']))
+    return render_template
+
 
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
 def join_lobby(lobby_id):
     for lobby in lobbies:
-        if lobby['id'] == lobby_id and lobby['status'] == 'waiting':
-            lobby['current_players'] += 1
-            if lobby['current_players'] == lobby['max_players']:
+        if lobby['id'] == lobby_id:
+            # Check if the player is already in the lobby
+            player_name = session.get('username')
+            if not any(player['name'] == player_name for player in lobby['players']):
+                # Add player to the lobby
+                lobby['players'].append({'name': player_name, 'ready': False})
+                lobby['current_players'] += 1
+            
+            # Update lobby status if it reaches max players
+            if lobby['current_players'] == int(lobby['max_players']):
                 lobby['status'] = 'full'
-            socketio.emit('lobby_update', lobby, broadcast=True)
-            return redirect(url_for('play'))
+            
+            # Emit an update about the lobby state
+            socketio.emit('lobby_update', lobby, to='/', namespace='/')
+
+            # Render the lobby waiting room page
+            return render_template('lobby.html', lobby=lobby)
+
+    # If no matching lobby is found, redirect back to lobby selection
     return redirect(url_for('play'))
+
+@app.route("/mark_ready/<lobby_id>", methods=["GET", "POST"])
+def mark_ready(lobby_id):
+    for lobby in lobbies:
+        if lobby['id'] == lobby_id:
+            player_name = session.get('username')
+            player = next((player for player in lobby['players'] if player['name'] == player_name), None)
+            if player:
+                player['ready'] = True
+                socketio.emit('player_ready', {'player_name': player_name, 'lobby_id': lobby_id})
+            return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
 if __name__ == "__main__":
     app.run(debug=True)
