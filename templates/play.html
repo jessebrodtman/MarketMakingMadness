@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Lobby Selector
+{% endblock %}
+
+{% block main %}
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Select a Game Lobby</h1>
+    
+    <!-- Make new lobby -->
+     <div class="text-center mb-4">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLobbyModal">Create New Lobby</button>
+     </div>
+
+     <!-- List lobbies -->
+    <div class="row">
+        {% for lobby in lobbies %}
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title> {{ lobby.name }} </h5>
+                        <p class="card-text">Players: {{ lobby.players }} / {{ lobby.max_players }}</p>
+                        <p class="card-text">Status: {{ lobby.status }}</p>
+                        <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-success">Join</a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Create lobby modal -->
+    <div class="modal fade" id="createLobbyModal" tabindex="-1" aria-labelledby="createLobbyModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createLobbyModalLabel">Create New Lobby</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/create_lobby" method="post">
+                    <div class="modal-body>
+                        <div class="mb-3">
+                            <label for="lobby_name" class="form-label">Lobby Name</label>
+                            <input type="text" class="form-control" id="lobby_name" name="lobby_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="max_players" class="form-label">Max Players</label>
+                            <input type="number" class="form-control" id="max_players" name="max_players" required>
+                        </div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Create Lobby</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

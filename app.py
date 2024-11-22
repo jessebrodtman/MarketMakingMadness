@@ -1,12 +1,18 @@
 import os
 from cs50 import SQL
-from flask import Flask, flash, redirect, render_template, request, session
+from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask_socketio import SocketIO, emit
+import uuid
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 # Configure application
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
+socketio = SocketIO(app)
+
+# Lobby storage
+lobbies = []
 
 # Configure cs50 to use SQLite database
 db = SQL("sqlite:///gamefiles.db")
@@ -86,12 +92,9 @@ def register():
     else:
         return render_template("register.html")
     
-@app.route("/game", methods=["GET", "POST"])
+@app.route("/play", methods=["GET", "POST"])
 def game():
-    if request.method == "POST":
-        return render_template("game.html")
-    else:
-        return render_template("game.html")
+    return render_template("play.html", lobbies = lobbies)
 
 @app.route("/history", methods=["GET", "POST"])
 def history():
@@ -106,3 +109,34 @@ def settings():
         return render_template("settings.html")
     else:
         return render_template("settings.html")
+    
+@app.route("/create_lobby", methods=["GET", "POST"])
+def create_lobby():
+    lobby_name = request.form['lobby_name']
+    max_players = request.form['max_players']
+    new_lobby = {
+        'id': str(uuid.uuid4()),
+        'name': lobby_name,
+        'max_players': max_players,
+        'current_players': 0,
+        'status': 'waiting'
+    }
+    lobbies.append(new_lobby)
+    print(lobbies)
+    socketio.emit('lobby_update', new_lobby)
+    return redirect(url_for('play'))
+
+@app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
+def join_lobby(lobby_id):
+    for lobby in lobbies:
+        if lobby['id'] == lobby_id and lobby['status'] == 'waiting':
+            lobby['current_players'] += 1
+            if lobby['current_players'] == lobby['max_players']:
+                lobby['status'] = 'full'
+            socketio.emit('lobby_update', lobby, broadcast=True)
+            return redirect(url_for('play'))
+    return redirect(url_for('play'))
+
+if __name__ == "__main__":
+    app.run(debug=True)
+    socketio.run(app)
