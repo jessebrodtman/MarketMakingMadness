@@ -1,0 +1,106 @@
+/* Hero Section */
+.hero-section {
+    background-color: #007bff;
+    color: #fff;
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+.hero-title {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.hero-subtitle {
+    font-size: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+/* Dashboard Section */
+.dashboard-section {
+    margin-top: 2rem;
+}
+
+.dashboard-card {
+    text-align: center;
+    border-radius: 8px;
+    padding: 2rem;
+    background: linear-gradient(120deg, #f8f9fa, #e9ecef);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-title {
+    font-size: 1.25rem;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-change {
+    font-size: 0.9rem;
+    color: #28a745;
+}
+
+/* How It Works Section */
+.how-it-works-section {
+    background-color: #f8f9fa;
+    padding: 3rem 0;
+}
+
+.how-it-works-card {
+    text-align: center;
+    padding: 2rem;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.how-it-works-card h3 {
+    font-size: 1.25rem;
+    color: #495057;
+    margin-bottom: 1rem;
+}
+
+.how-it-works-card p {
+    font-size: 1rem;
+    color: #6c757d;
+}
+
+/* About Us Section */
+.about-us-section {
+    padding: 3rem 0;
+    background-color: #fff;
+}
+
+.about-block {
+    text-align: center;
+    background-color: #f8f9fa;
+    border: 1px solid #e3e3e3;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.about-block img {
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    margin-bottom: 1rem;
+}
+
+.about-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.about-description {
+    font-size: 1rem;
+    color: #6c757d;
+}

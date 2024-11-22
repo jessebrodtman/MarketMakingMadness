@@ -5,15 +5,46 @@
 {% endblock %}
 
 {% block main %}
-    <form action="/login" method="post">
-        <div class="mb-3">
-            <label for="username" class="form-label">Username</label>
-            <input type="text" class="form-control" id="username" name="username">
-        </div>
-        <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" name="password">
-        </div>
-        <button type="submit" class="btn btn-primary">Submit</button>
-    </form>
+<div class="login-container d-flex">
+    <!-- Left side: Form -->
+    <div class="login-form-container col-lg-6 p-5">
+        <h1 class="text-center">Welcome back</h1>
+        <p class="text-center mb-4">Please enter your details</p>
+        <form action="/login" method="post" class="login-form">
+            <!-- Email Input -->
+            <div class="mb-3">
+                <label for="email" class="form-label">Email address</label>
+                <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required>
+            </div>
+            
+            <!-- Password Input -->
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+
+            <!-- Remember Me & Forgot Password -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="remember-me" name="remember-me">
+                    <label class="form-check-label" for="remember-me">Remember for 30 days</label>
+                </div>
+                <a href="/forgot-password" class="text-decoration-none">Forgot password</a>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary w-100 mb-3">Sign in</button>
+
+            <!-- Sign Up Link -->
+            <p class="text-center">
+                Don’t have an account? <a href="/register" class="text-decoration-none">Sign up</a>
+            </p>
+        </form>
+    </div>
+
+    <!-- Right side: Illustration -->
+    <div class="login-illustration-container col-lg-6 d-none d-lg-block">
+        <img src="{{ url_for('static', filename='images/login-illustration.svg') }}" alt="Login Illustration" class="img-fluid">
+    </div>
+</div>
 {% endblock %}
