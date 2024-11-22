@@ -4,6 +4,10 @@
     Login
 {% endblock %}
 
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
 {% block main %}
 <div class="login-container d-flex">
     <!-- Left side: Form -->

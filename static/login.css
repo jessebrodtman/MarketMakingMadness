@@ -1,0 +1,118 @@
+/* Shared Container (Works for Both Login and Register Pages) */
+.login-container,
+.register-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    height: 100vh;
+    background-color: #f8f9fa;
+    padding: 20px;
+}
+
+/* Shared Form Container (Works for Both Login and Register Pages) */
+.login-form-container,
+.register-form-container {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    width: 100%;
+    margin: auto;
+    padding: 20px;
+}
+
+.login-form-container h1,
+.register-form-container h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.login-form-container p,
+.register-form-container p {
+    color: #6c757d;
+    font-size: 1rem;
+}
+
+.login-form-container .form-label,
+.register-form-container .form-label {
+    font-weight: 500;
+    color: #495057;
+}
+
+.login-form-container .form-control,
+.register-form-container .form-control {
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 1rem;
+}
+
+.login-form-container .form-control:focus,
+.register-form-container .form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.25);
+}
+
+.login-form-container .btn-primary,
+.register-form-container .btn-primary {
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    font-weight: 500;
+    width: 100%;
+}
+
+.login-form-container .btn-primary:hover,
+.register-form-container .btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.login-form-container .text-decoration-none,
+.register-form-container .text-decoration-none {
+    color: #007bff;
+    transition: color 0.2s ease;
+}
+
+.login-form-container .text-decoration-none:hover,
+.register-form-container .text-decoration-none:hover {
+    color: #0056b3;
+}
+
+/* Shared Illustration Container */
+.login-illustration-container,
+.register-illustration-container {
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+}
+
+.login-illustration-container img,
+.register-illustration-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Design (Works for Both Pages) */
+@media (max-width: 992px) {
+    .login-container,
+    .register-container {
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .login-form-container,
+    .register-form-container {
+        margin-bottom: 20px;
+    }
+
+    .login-illustration-container,
+    .register-illustration-container {
+        display: none; /* Hide the illustration on smaller screens */
+    }
+}
