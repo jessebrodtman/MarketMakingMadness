@@ -343,11 +343,6 @@ def handle_exception(e):
     """
     return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
 
-=======
-        return render_template("settings.html")
-    else:
-        return render_template("settings.html")
-    
 @app.route("/create_lobby", methods=["GET", "POST"])
 @login_required
 def create_lobby():
