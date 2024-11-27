@@ -43,33 +43,38 @@ def after_request(response):
 
 @app.route("/")
 def index():
-    """
-    Render the homepage. Redirect unauthenticated users to the login page.
-    """
     if "user_id" not in session:
-        # Redirect unauthenticated users to the login page
         flash("You must log in to access the homepage", "warning")
         return redirect("/login")
 
-    # Fetch user data if logged in
-    user_id = session["user_id"]
-    stats = db.execute("""
-        SELECT 
-            IFNULL(SUM(pnl), 0) AS total_pnl,
-            IFNULL(COUNT(id), 0) AS games_played
-        FROM games 
-        WHERE user_id = :user_id
-    """, user_id=user_id)[0]
+    try:
+        # Fetch user data if logged in
+        user_id = session["user_id"]
+        print(f"User ID from session: {user_id}")
 
-    visitors_online = 95774  # Placeholder for visitor count
+        stats = db.execute("""
+            SELECT 
+                IFNULL(SUM(pnl), 0) AS total_pnl,
+                IFNULL(COUNT(id), 0) AS games_played
+            FROM games 
+            WHERE user_id = :user_id
+        """, user_id=user_id)[0]
+        print(f"Stats fetched: {stats}")
 
-    return render_template(
-        "homepage.html",
-        username=db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]["username"],
-        total_pnl=stats["total_pnl"],
-        games_played=stats["games_played"],
-        visitors_online=visitors_online
-    )
+        username = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]["username"]
+        print(f"Username fetched: {username}")
+
+        visitors_online = 95774  # Placeholder for visitor count
+        return render_template(
+            "homepage.html",
+            username=username,
+            total_pnl=stats["total_pnl"],
+            games_played=stats["games_played"],
+            visitors_online=visitors_online
+        )
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return render_template("error.html", error_message="An unexpected error occurred"), 500
 
 
 @app.route("/login", methods=["GET", "POST"])

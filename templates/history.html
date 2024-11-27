@@ -4,6 +4,10 @@
     Game History
 {% endblock %}
 
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='history.css') }}">
+{% endblock %}
+
 {% block main %}
 <div class="history-container">
     <!-- Statistics Section -->
