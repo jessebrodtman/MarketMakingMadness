@@ -74,66 +74,47 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """
-    Handle user login. Authenticate the email and password entered in the login form.
-    """
-    # Clear any existing session
     session.clear()
 
     if request.method == "POST":
-        # Get form data
-        email = request.form.get("email")
+        username = request.form.get("username")
         password = request.form.get("password")
 
-        # Ensure email and password were submitted
-        if not email or not password:
-            flash("Email and password are required", "danger")
+        if not username or not password:
+            flash("Username and password are required", "danger")
             return render_template("login.html")
 
-        # Query database for email
-        rows = db.execute("SELECT * FROM users WHERE email = :email", email=email)
+        rows = db.execute("SELECT * FROM users WHERE username = :username", username=username)
 
-        # Check if email exists and password matches
         if len(rows) != 1 or not check_password_hash(rows[0]["password"], password):
-            flash("Invalid email or password", "danger")
+            flash("Invalid username or password", "danger")
             return render_template("login.html")
 
-        # Log in the user
         session["user_id"] = rows[0]["id"]
         session["username"] = rows[0]["username"]
-
         flash(f"Welcome back, {rows[0]['username']}!", "success")
         return redirect("/")
 
-    # Render the login page for GET requests
     return render_template("login.html")
 
     
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """
-    Handle user registration. Validate form inputs, check for unique usernames, and add the user to the database.
-    """
     if request.method == "POST":
-        # Get form data
         username = request.form.get("username")
         password = request.form.get("password")
         confirmation = request.form.get("confirmation")
 
-        # Ensure all fields are provided
         if not username or not password or not confirmation:
             flash("All fields are required", "danger")
             return render_template("register.html")
 
-        # Ensure passwords match
         if password != confirmation:
             flash("Passwords do not match", "danger")
             return render_template("register.html")
 
-        # Hash the password
         hashed_password = generate_password_hash(password)
 
-        # Insert the user into the database
         try:
             result = db.execute(
                 "INSERT INTO users (username, password) VALUES (:username, :password)",
@@ -144,66 +125,11 @@ def register():
             flash("Username already exists", "danger")
             return render_template("register.html")
 
-        # Log the user in (store user ID in session)
         session["user_id"] = result
-
         flash("Registration successful! Welcome to MarketMakingMadness!", "success")
         return redirect("/")
-    else:
-        # Render the registration page for GET requests
-        return render_template("register.html")
-@app.route("/settings", methods=["GET", "POST"])
-def settings():
-    """
-    Handle account settings. Allow users to update their username or password.
-    Redirect unauthenticated users to the login page.
-    """
-    # Ensure user is logged in
-    if "user_id" not in session:
-        flash("Please log in to access account settings", "warning")
-        return redirect("/login")
+    return render_template("register.html")
 
-    user_id = session["user_id"]
-
-    if request.method == "POST":
-        # Fetch form data
-        new_username = request.form.get("username")
-        new_password = request.form.get("new_password")
-        confirm_password = request.form.get("confirm_password")
-
-        # Validate username change
-        if new_username:
-            if db.execute("SELECT * FROM users WHERE username = :username", username=new_username):
-                flash("Username already exists", "danger")
-            else:
-                db.execute(
-                    "UPDATE users SET username = :username WHERE id = :user_id",
-                    username=new_username,
-                    user_id=user_id
-                )
-                flash("Username updated successfully", "success")
-
-        # Validate password change
-        if new_password or confirm_password:
-            if new_password != confirm_password:
-                flash("Passwords do not match", "danger")
-            else:
-                hashed_password = generate_password_hash(new_password)
-                db.execute(
-                    "UPDATE users SET password = :password WHERE id = :user_id",
-                    password=hashed_password,
-                    user_id=user_id
-                )
-                flash("Password updated successfully", "success")
-
-        # Redirect back to the settings page after updates
-        return redirect("/settings")
-
-    # Fetch the current username for display
-    user = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]
-
-    # Render the settings page
-    return render_template("settings.html", user=user)
     
 @app.route("/play", methods=["GET", "POST"])
 @login_required
@@ -349,6 +275,9 @@ def create_lobby():
     if request.method == "POST":
         lobby_name = request.form['lobby_name']
         max_players = request.form['max_players']
+        if not max_players.isdigit() or int(max_players) <= 0:
+            flash("Max players must be a positive number", "danger")
+            return redirect(url_for('play'))
         new_lobby = {
             'id': str(uuid.uuid4()),
             'name': lobby_name,
@@ -372,6 +301,11 @@ def join_lobby(lobby_id):
             player_name = session.get('username')
             if not player_name:
                 return redirect(url_for('login'))  # Redirect to login if no username is in session
+            
+            if lobby['status'] == 'full':
+                flash("Lobby is full", "warning")
+                return redirect(url_for('play'))
+
 
             if not any(player['name'] == player_name for player in lobby['players']):
                 # Add player to the lobby
@@ -389,6 +323,7 @@ def join_lobby(lobby_id):
             return render_template('lobby.html', lobby=lobby)
 
     # If no matching lobby is found, redirect back to lobby selection
+    flash("The requested lobby does not exist", "danger")
     return redirect(url_for('play'))
 
 @app.route("/mark_ready/<lobby_id>", methods=["GET", "POST"])
