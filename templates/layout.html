@@ -64,13 +64,17 @@
     </nav>
 
     <!-- Flash Messages -->
-    {% if get_flashed_messages() %}
-    <div class="alert alert-primary" role="alert">
-        {% for message in get_flashed_messages() %}
-            {{ message }}
-        {% endfor %}
-    </div>
-    {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="container mt-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
 
     <!-- Main Content -->
     <main class="container py-5 text-center">
