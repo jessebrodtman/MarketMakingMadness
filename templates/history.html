@@ -1,9 +1,61 @@
 {% extends "layout.html" %}
 
 {% block title %}
-    History
+    Game History
 {% endblock %}
 
 {% block main %}
-    <h1>Hello</h1>
+<div class="history-container">
+    <!-- Statistics Section -->
+    <section class="history-stats">
+        <h1>Your Game History</h1>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h2>Total Profit & Loss</h2>
+                <p class="stat-value">${{ total_pnl }}</p>
+            </div>
+            <div class="stat-card">
+                <h2>Total Games Played</h2>
+                <p class="stat-value">{{ total_games }}</p>
+            </div>
+            <div class="stat-card">
+                <h2>Winning Percentage</h2>
+                <p class="stat-value">{{ winning_percentage }}%</p>
+            </div>
+            <div class="stat-card">
+                <h2>Best P&L</h2>
+                <p class="stat-value">${{ best_pnl }}</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Game History Table -->
+    <section class="game-history">
+        <h2>Detailed Game History</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Date</th>
+                    <th>Scenario</th>
+                    <th>P&L</th>
+                    <th>Accuracy</th>
+                    <th>Time Taken</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for game in games %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ game.date }}</td>
+                    <td>{{ game.scenario }}</td>
+                    <td>${{ game.pnl }}</td>
+                    <td>{{ game.accuracy }}%</td>
+                    <td>{{ game.time_taken }} mins</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
 {% endblock %}

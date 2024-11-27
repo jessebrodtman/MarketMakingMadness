@@ -43,88 +43,307 @@ def after_request(response):
 
 @app.route("/")
 def index():
-    return render_template("homepage.html")
+    """
+    Render the homepage. Redirect unauthenticated users to the login page.
+    """
+    if "user_id" not in session:
+        # Redirect unauthenticated users to the login page
+        flash("You must log in to access the homepage", "warning")
+        return redirect("/login")
+
+    # Fetch user data if logged in
+    user_id = session["user_id"]
+    stats = db.execute("""
+        SELECT 
+            IFNULL(SUM(pnl), 0) AS total_pnl,
+            IFNULL(COUNT(id), 0) AS games_played
+        FROM games 
+        WHERE user_id = :user_id
+    """, user_id=user_id)[0]
+
+    visitors_online = 95774  # Placeholder for visitor count
+
+    return render_template(
+        "homepage.html",
+        username=db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]["username"],
+        total_pnl=stats["total_pnl"],
+        games_played=stats["games_played"],
+        visitors_online=visitors_online
+    )
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    #forget user_id
+    """
+    Handle user login. Authenticate the email and password entered in the login form.
+    """
+    # Clear any existing session
     session.clear()
 
     if request.method == "POST":
-        # Ensure username was submitted
-        if not request.form.get("username"):
-            return render_template("login.html", error="Must provide username")
+        # Get form data
+        email = request.form.get("email")
+        password = request.form.get("password")
 
-        # Ensure password was submitted
-        elif not request.form.get("password"):
-            return render_template("login.html", error="Must provide password")
+        # Ensure email and password were submitted
+        if not email or not password:
+            flash("Email and password are required", "danger")
+            return render_template("login.html")
 
-        # Query database for username
-        rows = db.execute("SELECT * FROM users WHERE username = :username",
-                  username=request.form.get("username"))
+        # Query database for email
+        rows = db.execute("SELECT * FROM users WHERE email = :email", email=email)
 
-        # Ensure username exists and password is correct
-        if len(rows) != 1 or not check_password_hash(rows[0]["password"], request.form.get("password")):
-            return render_template("login.html", error="Invalid username and/or password")
+        # Check if email exists and password matches
+        if len(rows) != 1 or not check_password_hash(rows[0]["password"], password):
+            flash("Invalid email or password", "danger")
+            return render_template("login.html")
 
-        # Remember which user has logged in
+        # Log in the user
         session["user_id"] = rows[0]["id"]
         session["username"] = rows[0]["username"]
 
-        # Redirect user to home page
+        flash(f"Welcome back, {rows[0]['username']}!", "success")
         return redirect("/")
-    else:
-        return render_template("login.html")
+
+    # Render the login page for GET requests
+    return render_template("login.html")
+
     
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    """
+    Handle user registration. Validate form inputs, check for unique usernames, and add the user to the database.
+    """
     if request.method == "POST":
-        # Ensure username was submitted
-        if not request.form.get("username"):
-            return render_template("register.html", error="Must provide username")
+        # Get form data
+        username = request.form.get("username")
+        password = request.form.get("password")
+        confirmation = request.form.get("confirmation")
 
-        # Ensure password was submitted
-        elif not request.form.get("password"):
-            return render_template("register.html", error="Must provide password")
+        # Ensure all fields are provided
+        if not username or not password or not confirmation:
+            flash("All fields are required", "danger")
+            return render_template("register.html")
 
-        # Ensure password was confirmed
-        elif not request.form.get("confirmation"):
-            return render_template("register.html", error="Must confirm password")
+        # Ensure passwords match
+        if password != confirmation:
+            flash("Passwords do not match", "danger")
+            return render_template("register.html")
 
-        # Ensure password and confirmation match
-        elif request.form.get("password") != request.form.get("confirmation"):
-            return render_template("register.html", error="Passwords do not match")
+        # Hash the password
+        hashed_password = generate_password_hash(password)
 
-        # Insert new user into database
-        result = db.execute("INSERT INTO users (username, password) VALUES(?, ?)", request.form.get("username"), generate_password_hash(request.form.get("password")))
+        # Insert the user into the database
+        try:
+            result = db.execute(
+                "INSERT INTO users (username, password) VALUES (:username, :password)",
+                username=username,
+                password=hashed_password,
+            )
+        except:
+            flash("Username already exists", "danger")
+            return render_template("register.html")
 
-        # Check if username is already taken
-        if not result:
-            return render_template("register.html", error="Username already taken")
-
-        # Remember which user has logged in
+        # Log the user in (store user ID in session)
         session["user_id"] = result
 
-        # Redirect user to home page
+        flash("Registration successful! Welcome to MarketMakingMadness!", "success")
         return redirect("/")
     else:
+        # Render the registration page for GET requests
         return render_template("register.html")
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    """
+    Handle account settings. Allow users to update their username or password.
+    Redirect unauthenticated users to the login page.
+    """
+    # Ensure user is logged in
+    if "user_id" not in session:
+        flash("Please log in to access account settings", "warning")
+        return redirect("/login")
+
+    user_id = session["user_id"]
+
+    if request.method == "POST":
+        # Fetch form data
+        new_username = request.form.get("username")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+
+        # Validate username change
+        if new_username:
+            if db.execute("SELECT * FROM users WHERE username = :username", username=new_username):
+                flash("Username already exists", "danger")
+            else:
+                db.execute(
+                    "UPDATE users SET username = :username WHERE id = :user_id",
+                    username=new_username,
+                    user_id=user_id
+                )
+                flash("Username updated successfully", "success")
+
+        # Validate password change
+        if new_password or confirm_password:
+            if new_password != confirm_password:
+                flash("Passwords do not match", "danger")
+            else:
+                hashed_password = generate_password_hash(new_password)
+                db.execute(
+                    "UPDATE users SET password = :password WHERE id = :user_id",
+                    password=hashed_password,
+                    user_id=user_id
+                )
+                flash("Password updated successfully", "success")
+
+        # Redirect back to the settings page after updates
+        return redirect("/settings")
+
+    # Fetch the current username for display
+    user = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]
+
+    # Render the settings page
+    return render_template("settings.html", user=user)
     
 @app.route("/play", methods=["GET", "POST"])
 @login_required
 def game():
     return render_template("play.html", lobbies = lobbies)
 
-@app.route("/history", methods=["GET", "POST"])
+@app.route("/history")
 def history():
-    if request.method == "POST":
-        return render_template("history.html")
-    else:
-        return render_template("history.html")
+    """
+    Display the user's game history and statistics.
+    Redirect unauthenticated users to the login page.
+    """
+    # Ensure user is logged in
+    if "user_id" not in session:
+        flash("Please log in to view your game history", "warning")
+        return redirect("/login")
+
+    user_id = session["user_id"]
+
+    # Query total statistics
+    stats = db.execute("""
+        SELECT 
+            IFNULL(SUM(pnl), 0) AS total_pnl,
+            IFNULL(COUNT(id), 0) AS total_games,
+            IFNULL(MAX(pnl), 0) AS best_pnl
+        FROM games 
+        WHERE user_id = :user_id
+    """, user_id=user_id)[0]
+
+    # Calculate winning percentage
+    total_games = stats["total_games"]
+    total_wins = db.execute("SELECT COUNT(id) FROM games WHERE user_id = :user_id AND pnl > 0", user_id=user_id)[0]["COUNT(id)"]
+    winning_percentage = (total_wins / total_games * 100) if total_games > 0 else 0
+
+    # Fetch detailed game history
+    games = db.execute("""
+        SELECT 
+            date, scenario, pnl, accuracy, time_taken
+        FROM games 
+        WHERE user_id = :user_id
+        ORDER BY date DESC
+    """, user_id=user_id)
+
+    # Render the history page with all data
+    return render_template(
+        "history.html",
+        total_pnl=stats["total_pnl"],
+        total_games=total_games,
+        best_pnl=stats["best_pnl"],
+        winning_percentage=round(winning_percentage, 2),
+        games=games
+    )
+
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
+    """
+    Handle account settings. Allow users to update their username or password.
+    Redirect unauthenticated users to the login page.
+    """
+    # Ensure user is logged in
+    if "user_id" not in session:
+        flash("Please log in to access account settings", "warning")
+        return redirect("/login")
+
+    user_id = session["user_id"]
+
     if request.method == "POST":
+        # Fetch form data
+        new_username = request.form.get("username")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+
+        # Validate username change
+        if new_username:
+            if db.execute("SELECT * FROM users WHERE username = :username", username=new_username):
+                flash("Username already exists", "danger")
+            else:
+                db.execute(
+                    "UPDATE users SET username = :username WHERE id = :user_id",
+                    username=new_username,
+                    user_id=user_id
+                )
+                flash("Username updated successfully", "success")
+
+        # Validate password change
+        if new_password or confirm_password:
+            if new_password != confirm_password:
+                flash("Passwords do not match", "danger")
+            else:
+                hashed_password = generate_password_hash(new_password)
+                db.execute(
+                    "UPDATE users SET password = :password WHERE id = :user_id",
+                    password=hashed_password,
+                    user_id=user_id
+                )
+                flash("Password updated successfully", "success")
+
+        # Redirect back to the settings page after updates
+        return redirect("/settings")
+
+    # Fetch the current username for display
+    user = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]
+
+    # Render the settings page
+    return render_template("settings.html", user=user)
+
+    
+@app.route("/logout")
+def logout():
+    """
+    Log out the current user and redirect to the login page.
+    """
+    session.clear()
+    flash("You have been logged out successfully", "info")
+    return redirect("/login")
+
+
+@app.errorhandler(404)
+def not_found_error(e):
+    """
+    Handle 404 Not Found errors.
+    """
+    return render_template("error.html", error_message="The page you are looking for does not exist."), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    """
+    Handle 500 Internal Server errors.
+    """
+    return render_template("error.html", error_message="An internal server error occurred. Please try again later."), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """
+    Handle all other exceptions with a generic error message.
+    """
+    return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
+
+=======
         return render_template("settings.html")
     else:
         return render_template("settings.html")

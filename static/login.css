@@ -1,0 +1,120 @@
+/* Shared Container (Works for Both Login and Register Pages) */
+.login-container,
+.register-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    height: 100vh;
+    background-color: #F5F5F5; /* Light Gray */
+    padding: 20px;
+}
+
+/* Shared Form Container (Works for Both Login and Register Pages) */
+.login-form-container,
+.register-form-container {
+    background-color: #ffffff; /* White background */
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    width: 100%;
+    margin: auto;
+    padding: 20px;
+}
+
+.login-form-container h1,
+.register-form-container h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #DC143C; /* Crimson for headings */
+}
+
+.login-form-container p,
+.register-form-container p {
+    color: #6C757D; /* Neutral text for descriptions */
+    font-size: 1rem;
+}
+
+.login-form-container .form-label,
+.register-form-container .form-label {
+    font-weight: 500;
+    color: #2C2C2C; /* Deep Charcoal for labels */
+}
+
+.login-form-container .form-control,
+.register-form-container .form-control {
+    border: 1px solid #CED4DA; /* Light border */
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 1rem;
+}
+
+.login-form-container .form-control:focus,
+.register-form-container .form-control:focus {
+    border-color: #DC143C; /* Crimson border on focus */
+    box-shadow: 0 0 5px rgba(220, 20, 60, 0.25); /* Crimson glow on focus */
+}
+
+.login-form-container .btn-primary,
+.register-form-container .btn-primary {
+    background-color: #DC143C; /* Crimson button */
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    font-weight: 500;
+    width: 100%;
+    color: #fff; /* White text */
+}
+
+.login-form-container .btn-primary:hover,
+.register-form-container .btn-primary:hover {
+    background-color: #9B0F30; /* Darker Crimson on hover */
+}
+
+.login-form-container .text-decoration-none,
+.register-form-container .text-decoration-none {
+    color: #DC143C; /* Crimson links */
+    transition: color 0.2s ease;
+}
+
+.login-form-container .text-decoration-none:hover,
+.register-form-container .text-decoration-none:hover {
+    color: #9B0F30; /* Darker Crimson on hover */
+}
+
+/* Shared Illustration Container */
+.login-illustration-container,
+.register-illustration-container {
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+}
+
+.login-illustration-container img,
+.register-illustration-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border: 3px solid #DC143C; /* Crimson border around images */
+}
+
+/* Responsive Design (Works for Both Pages) */
+@media (max-width: 992px) {
+    .login-container,
+    .register-container {
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .login-form-container,
+    .register-form-container {
+        margin-bottom: 20px;
+    }
+
+    .login-illustration-container,
+    .register-illustration-container {
+        display: none; /* Hide the illustration on smaller screens */
+    }
+}
