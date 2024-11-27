@@ -64,6 +64,8 @@ def index():
         username = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]["username"]
         print(f"Username fetched: {username}")
 
+
+
         visitors_online = 95774  # Placeholder for visitor count
         return render_template(
             "homepage.html",
