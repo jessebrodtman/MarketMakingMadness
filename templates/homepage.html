@@ -12,10 +12,13 @@
 <div id="homepage">
     <!-- Hero Section -->
     <section id="hero" class="hero-section text-center">
-        <h1 class="hero-title">Welcome to MarketMakingMadness</h1>
-        <p class="hero-subtitle">The ultimate market-making game where strategy meets competition.</p>
-        <a href="{{ url_for('game') }}" class="btn btn-primary">Start Game</a>
+        <div class="hero-overlay">
+            <h1 class="hero-title">Welcome to MarketMakingMadness</h1>
+            <p class="hero-subtitle">The ultimate market-making game where strategy meets competition.</p>
+            <a href="{{ url_for('game') }}" class="btn btn-primary">Start Game</a>
+        </div>
     </section>
+    
 
    <!-- Dashboard Section -->
     <section id="dashboard" class="dashboard-section container py-5">
