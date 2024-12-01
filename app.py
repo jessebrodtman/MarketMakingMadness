@@ -681,7 +681,7 @@ def end_game(lobby_id):
     except Exception as e:
         flash("An error occurred while ending the game. Please try again.", "danger")
         print(e)
-    return redirect(url_for('game'))
+    return redirect(url_for("play"))
 
 # Bot Helper Functions and Routes
 def get_current_market_state(lobby_id):
