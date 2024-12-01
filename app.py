@@ -371,7 +371,6 @@ if __name__ == "__main__":
 
 
 
-
 # Lobby and Game Logic Helper Funciton
 def get_fair_value(lobby_id):
     """
@@ -465,12 +464,92 @@ def player_trade(lobby_id):
 
     return redirect(url_for("play", lobby_id=lobby_id))
 
+# Lobby / Game Cleanup Functions
+def cleanup_lobby(lobby_id):
+    """
+    Remove the lobby and associated data from memory.
+
+    Args:
+        lobby_id (str): The ID of the lobby to clean up.
+    """
+    global lobbies, BOTS, markets
+
+    # Remove lobby from lobbies array
+    lobbies = [lobby for lobby in lobbies if lobby['id'] != lobby_id]
+
+    # Remove bots associated with the lobby
+    BOTS = {bot_id: bot for bot_id, bot in BOTS.items() if bot.lobby_id != lobby_id}
+
+    # Remove market associated with the lobby
+    if lobby_id in markets:
+        del markets[lobby_id]
+
+def cleanup_game_data(game_id):
+    """
+    Perform database cleanup after a game ends.
+
+    Args:
+        game_id (int): The ID of the game to clean up.
+    """
+    # Mark game as completed
+    db.execute("""
+        UPDATE games SET status = 'completed' WHERE id = :game_id
+    """, game_id=game_id)
+
+    # Aggregate performance data into game_results
+    db.execute("""
+        INSERT INTO game_results (user_id, game_id, pnl, trades_completed)
+        SELECT gp.user_id, gp.game_id, gp.total_pnl, COUNT(t.id)
+        FROM game_participants gp
+        LEFT JOIN transactions t ON gp.user_id = t.buyer_id OR gp.user_id = t.seller_id
+        WHERE gp.game_id = :game_id
+        GROUP BY gp.user_id
+    """, game_id=game_id)
+
+    # Delete old orders and transactions
+    db.execute("""
+        DELETE FROM orders WHERE game_id = :game_id
+    """, game_id=game_id)
+
+    db.execute("""
+        DELETE FROM transactions WHERE game_id = :game_id
+    """, game_id=game_id)
+
+@app.route("/end_game/<lobby_id>", methods=["POST"])
+@login_required
+def end_game(lobby_id):
+    """
+    Handle game and lobby cleanup when a game ends.
+
+    Args:
+        lobby_id (str): The ID of the lobby to clean up.
+    """
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby['id'] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for('play'))
+
+    # Perform database cleanup
+    cleanup_game_data(lobby_id)
+
+    # Perform memory cleanup
+    cleanup_lobby(lobby_id)
+
+    flash("Game has been ended and data cleaned up", "success")
+    return redirect(url_for('play'))
+
+
+
+
+
 
 # Bot Helper Functions and Routes
 def get_current_market_state(lobby_id):
     """
     Retrieve the current market state for a specific lobby.
     """
+    # Best bid and ask
     best_bid = db.execute("""
         SELECT price, user_id, quantity FROM orders
         WHERE game_id = :game_id AND type = 'bid'
@@ -483,6 +562,20 @@ def get_current_market_state(lobby_id):
         ORDER BY price ASC, created_at ASC LIMIT 1
     """, game_id=lobby_id)
 
+    # Full market depth
+    all_bids = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND type = 'bid'
+        ORDER BY price DESC, created_at ASC
+    """, game_id=lobby_id)
+
+    all_asks = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND type = 'ask'
+        ORDER BY price ASC, created_at ASC
+    """, game_id=lobby_id)
+
+    # Recent trades
     recent_trades = db.execute("""
         SELECT buyer_id, seller_id, price, quantity, created_at FROM transactions
         WHERE game_id = :game_id
@@ -492,20 +585,29 @@ def get_current_market_state(lobby_id):
     return {
         "best_bid": best_bid[0] if best_bid else None,
         "best_ask": best_ask[0] if best_ask else None,
+        "all_bids": all_bids,
+        "all_asks": all_asks,
         "recent_trades": recent_trades,
     }
+
 
 @app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def add_bot_to_lobby(lobby_id):
     bot_name = request.form.get("bot_name", "DefaultBot")
     bot_level = request.form.get("bot_level", "medium")
+    bot_name = f"{bot_name} ({bot_level})"
 
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
+
+    # Check if the lobby is full
+    if lobby["current_players"] >= int(lobby["max_players"]):
+        flash("Lobby is full. Cannot add more players or bots.", "danger")
+        return redirect(url_for("join_lobby", lobby_id=lobby_id))
 
     # Add bot to the lobby
     bot_id = str(uuid.uuid4())
@@ -514,6 +616,7 @@ def add_bot_to_lobby(lobby_id):
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
 
 @app.route("/bot_action/<lobby_id>", methods=["POST"])
 def bot_action(lobby_id):
@@ -524,17 +627,13 @@ def bot_action(lobby_id):
         bot.update_market_state(market_state)
 
         # Decide whether to post new bid/ask prices
-        if bot.should_update_quotes():  # New method in the Bot class
+        if bot.should_update_quotes():
             bid, ask = bot.generate_bid_ask()
-            db.execute("""
-                INSERT INTO market_bids_asks (game_id, user_id, price, quantity, type, created_at)
-                VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
-            """, game_id=lobby_id, user_id=bot.bot_id, price=bid, quantity=random.randint(1, 10), type="bid")
-
-            db.execute("""
-                INSERT INTO market_bids_asks (game_id, user_id, price, quantity, type, created_at)
-                VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
-            """, game_id=lobby_id, user_id=bot.bot_id, price=ask, quantity=random.randint(1, 10), type="ask")
+            for price, order_type in [(bid, "bid"), (ask, "ask")]:
+                db.execute("""
+                    INSERT INTO orders (game_id, user_id, price, quantity, type, created_at)
+                    VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
+                """, game_id=lobby_id, user_id=bot.bot_id, price=price, quantity=random.randint(1, 10), type=order_type)
 
         # Decide to trade
         trade = bot.decide_to_trade()

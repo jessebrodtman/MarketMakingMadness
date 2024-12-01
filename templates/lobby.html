@@ -80,5 +80,14 @@
             </form>
         {% endif %}
     </div>
+
+    <!-- End Game Button -->
+    <div class="text-center mt-4">
+        {% if lobby.status == "in_progress" %}
+            <form action="{{ url_for('end_game', lobby_id=lobby.id) }}" method="post">
+                <button type="submit" class="btn btn-danger">End Game</button>
+            </form>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
