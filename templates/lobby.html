@@ -4,12 +4,18 @@
 
 {% block main %}
 <div class="container mt-5">
-    <h1 class="text-center mb-4"> Lobby: {{ lobby.name }}</h1>
+    <h1 class="text-center mb-4">Lobby: {{ lobby.name }}</h1>
     <p class="text-center">Players: {{ lobby.current_players }} / {{ lobby.max_players }}</p>
     <p class="text-center">Status: {{ lobby.status }}</p>
 
-    <!-- List players -->
-     <div class="mt-4">
+    <!-- Market Question -->
+    <div class="mt-4 text-center">
+        <h3>Market Question</h3>
+        <p class="market-question text-muted">{{ lobby.market_question }}</p>
+    </div>
+
+    <!-- List Players -->
+    <div class="mt-4">
         <h3>Players in Lobby</h3>
         <ul class="list-group">
             {% for player in lobby.players %}
@@ -28,6 +34,29 @@
         </ul>
     </div>
 
+    <!-- Add Bots -->
+    <div class="mt-4">
+        <h3>Add Bots</h3>
+        <form action="{{ url_for('add_bot_to_lobby', lobby_id=lobby.id) }}" method="POST" class="row g-3">
+            <div class="col-md-6">
+                <label for="bot_name" class="form-label">Bot Name</label>
+                <input type="text" id="bot_name" name="bot_name" class="form-control" placeholder="Enter bot name" required>
+            </div>
+            <div class="col-md-6">
+                <label for="bot_level" class="form-label">Difficulty</label>
+                <select id="bot_level" name="bot_level" class="form-select">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                    <option value="Jane Street">Jane Street</option>
+                </select>
+            </div>
+            <div class="col-12 text-center">
+                <button type="submit" class="btn btn-primary">Add Bot</button>
+            </div>
+        </form>
+    </div>
+
     <!-- Ready Button -->
     <div class="text-center mt-4">
         {% for player in lobby.players %}
@@ -42,6 +71,14 @@
             {% endif %}
         {% endfor %}
     </div>
-</div>
 
+    <!-- Start Game Button -->
+    <div class="text-center mt-4">
+        {% if lobby.current_players > 1 and lobby.status != "in_progress" %}
+            <form action="{{ url_for('start_game', lobby_id=lobby.id) }}" method="post">
+                <button type="submit" class="btn btn-success">Start Game</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

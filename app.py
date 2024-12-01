@@ -7,7 +7,7 @@ from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from markets import get_random_market, get_market_answer, get_all_markets, add_market
-from bots import create_bot, remove_bot, get_bots_in_lobby
+from bots import Bot, BOTS, create_bot, remove_bot, get_bots_in_lobby
 import random
 
 
@@ -18,6 +18,7 @@ socketio = SocketIO(app)
 
 # Lobby storage
 lobbies = []
+markets = {}
 
 # Configure cs50 to use SQLite database
 db = SQL("sqlite:///gamefiles.db")
@@ -286,20 +287,35 @@ def create_lobby():
     if request.method == "POST":
         lobby_name = request.form['lobby_name']
         max_players = request.form['max_players']
+        
+        # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
             flash("Max players must be a positive number", "danger")
             return redirect(url_for('play'))
+
+        # Generate a unique lobby ID
+        lobby_id = str(uuid.uuid4())
+
+        # Assign a random market to the lobby
+        market = get_random_market()
+        markets[lobby_id] = market  # Store the market in the global markets dictionary
+
+        # Create the lobby object
         new_lobby = {
-            'id': str(uuid.uuid4()),
+            'id': lobby_id,
             'name': lobby_name,
             'max_players': max_players,
             'current_players': 0,
             'status': 'waiting',
-            'players': []
+            'players': [],
+            'market_question': market['question'],  # Add the market question to the lobby object
         }
         lobbies.append(new_lobby)
+        
+        # Notify via SocketIO
         socketio.emit('lobby_update', new_lobby)
         return redirect(url_for('join_lobby', lobby_id=new_lobby['id']))
+
     return render_template
 
 
@@ -356,7 +372,22 @@ if __name__ == "__main__":
 
 
 
-# Execute Trade Helper Funciton
+# Lobby and Game Logic Helper Funciton
+def get_fair_value(lobby_id):
+    """
+    Retrieve the fair value of the market for a given lobby.
+
+    Args:
+        lobby_id (str): The ID of the lobby.
+
+    Returns:
+        float: The fair value of the market.
+    """
+    market = markets.get(lobby_id)
+    if market:
+        return market['fair_value']
+    raise ValueError(f"No market found for lobby {lobby_id}")  # Error if lobby has no market
+
 def execute_trade(game_id, user_id, trade_type, trade_price):
     """
     Execute a trade for a given user (bot or human).
@@ -464,7 +495,26 @@ def get_current_market_state(lobby_id):
         "recent_trades": recent_trades,
     }
 
-@app.route("/bot_action/<lobby_id>", methods=["POST"])
+@app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
+@login_required
+def add_bot_to_lobby(lobby_id):
+    bot_name = request.form.get("bot_name", "DefaultBot")
+    bot_level = request.form.get("bot_level", "medium")
+
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for("play"))
+
+    # Add bot to the lobby
+    bot_id = str(uuid.uuid4())
+    bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
+    lobby["players"].append({"name": bot_name, "ready": True})  # Mark bot as ready
+
+    flash(f"Bot '{bot_name}' added to the lobby", "success")
+    return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
 @app.route("/bot_action/<lobby_id>", methods=["POST"])
 def bot_action(lobby_id):
     bots = get_bots_in_lobby(lobby_id)
@@ -491,4 +541,29 @@ def bot_action(lobby_id):
         if trade:
             execute_trade(bot.bot_id, trade["type"], trade["price"])
 
+@app.route("/start_bot_trading/<lobby_id>", methods=["POST"])
+@login_required
+def start_bot_trading(lobby_id):
+    """
+    Start automatic trading cycles for all bots in the lobby.
+    """
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby['id'] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found. Cannot start trading.", "danger")
+        return redirect(url_for('play'))
+
+    # Retrieve all bots in the lobby
+    bots_in_lobby = [bot for bot in BOTS if bot.lobby_id == lobby_id]
+
+    if not bots_in_lobby:
+        flash("No bots found in the lobby to start trading.", "warning")
+        return redirect(url_for('join_lobby', lobby_id=lobby_id))
+
+    # Start trading cycles
+    for bot in bots_in_lobby:
+        bot_action(lobby_id)  # Reuse the existing bot_action function
+
+    flash("Bot trading cycles started.", "success")
+    return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
