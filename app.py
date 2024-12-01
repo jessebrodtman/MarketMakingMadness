@@ -425,7 +425,7 @@ def join_lobby(lobby_id):
 
     # Add the player to the lobby if not already present
     if not any(player["name"] == player_name for player in lobby["players"]):
-        lobby["players"].append({"name": player_name, "ready": False})
+        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False})
         lobby["current_players"] += 1
     
     flash("You have joined the lobby", "success")
@@ -627,7 +627,11 @@ def leave_lobby(lobby_id):
     if lobby["current_players"] == 0:
         # Automatically clean up the lobby
         end_game(lobby_id)  # Call the end_game function directly
-
+    # Check if the lobby now only contains bots
+    if all(player.get("is_bot", False) for player in lobby["players"]):
+        print(f"Lobby {lobby['id']} has only bots. Ending game.")
+        cleanup_all(lobby["id"])
+        
     flash("You have left the lobby", "success")
     return redirect(url_for("play"))
 
@@ -750,7 +754,7 @@ def add_bot_to_lobby(lobby_id):
     # Add bot to the lobby
     bot_id = str(uuid.uuid4())
     bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
-    lobby["players"].append({"name": bot_name, "ready": True})  # Mark bot as ready
+    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True})  # Mark bot as ready
     # lobby["current_players"] += 1
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
