@@ -99,7 +99,6 @@ MARKETS = {
     "Number of planets in the solar system": 8,
     "Weight of an average blue whale in pounds": 300000,
     "Number of legs on a spider": 8,
-    "Number of seconds in a day": 86400,
     "Number of piano keys": 88,
     "Number of floors in the Empire State Building": 102,
     "Number of books in the Harry Potter series": 7,
