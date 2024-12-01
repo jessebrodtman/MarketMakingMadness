@@ -1,7 +1,7 @@
 import os
 from cs50 import SQL
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import uuid
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -347,8 +347,6 @@ def finalize_game_results(game_id, lobby):
         WHERE t.game_id = :game_id
         GROUP BY t.buyer_id
     """, game_id=game_id, scenario=scenario, fair_value=fair_value)
-
-
 
 def mark_game_as_completed(game_id):
     """
@@ -756,6 +754,9 @@ def end_game(lobby_id):
         print(e)
     return redirect(url_for("play"))
 
+
+
+
 # Bot Helper Functions and Routes
 def get_current_market_state(lobby_id):
     """
@@ -880,8 +881,13 @@ def start_bot_trading(lobby_id):
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
+
+
+
+
+
+# Handling Inactive Users in a Lobby (Ones that leave, etc.). If you can get this to work that would be cool, but rn idk how to make it work.
 '''
-# Handling Inactive Users in a Lobby (Ones that leave, etc.)
 def remove_inactive_users():
     """
     Periodically remove inactive users from all lobbies and clean up empty or bot-only lobbies.

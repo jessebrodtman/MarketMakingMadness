@@ -5,9 +5,179 @@
 {% endblock %}
 
 {% block styles %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='settings.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='game.css') }}">
 {% endblock %}
 
 {% block main %}
-<h1>Game Will Go Here</h1>
+    <div class="game-container mt-5">
+        <!-- Market Question -->
+        <div class="game-market-question text-center mb-4">
+            <h3 class="game-market-question-title">{{ lobby.market_question }}</h3>
+        </div>
+
+        <!-- Bid/Ask Market Display and Player Actions -->
+        <div class="row">
+            <!-- Bid/Ask Market Display -->
+            <div class="col-md-6">
+                <h4 class="game-section-title text-center">Market Depth</h4>
+                <div class="game-market-display">
+                    <!-- Asks -->
+                    <div class="game-market-asks">
+                        <h5 class="game-market-subtitle text-center text-danger">Asks</h5>
+                        <table class="game-market-table table table-hover">
+                            <thead>
+                                <tr>
+                                    <th class="text-center">Quantity</th>
+                                    <th class="text-center">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ask in asks[:10] %}
+                                    <tr>
+                                        <td class="text-center">{{ ask.quantity }}</td>
+                                        <td class="text-center text-danger">{{ ask.price }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Bids -->
+                    <div class="game-market-bids">
+                        <h5 class="game-market-subtitle text-center text-success">Bids</h5>
+                        <table class="game-market-table table table-hover">
+                            <thead>
+                                <tr>
+                                    <th class="text-center">Price</th>
+                                    <th class="text-center">Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for bid in bids[:10] %}
+                                    <tr>
+                                        <td class="text-center text-success">{{ bid.price }}</td>
+                                        <td class="text-center">{{ bid.quantity }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Actions -->
+            <div class="col-md-6">
+                <h4 class="game-section-title text-center">Player Actions</h4>
+                <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST" class="game-player-action-form mb-4">
+                    <div class="mb-3">
+                        <label for="trade_type" class="game-form-label form-label">Trade Type</label>
+                        <select id="trade_type" name="type" class="game-form-select form-select" required>
+                            <option value="buy">Buy</option>
+                            <option value="sell">Sell</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="trade_price" class="game-form-label form-label">Price</label>
+                        <input type="number" id="trade_price" name="price" class="game-form-input form-control" step="0.01" placeholder="Enter price" required>
+                    </div>
+                    <button type="submit" class="game-btn btn btn-primary w-100">Submit Trade</button>
+                </form>
+                <form action="{{ url_for('set_order', lobby_id=lobby.id) }}" method="POST" class="game-player-action-form">
+                    <div class="mb-3">
+                        <label for="order_type" class="game-form-label form-label">Order Type</label>
+                        <select id="order_type" name="type" class="game-form-select form-select" required>
+                            <option value="bid">Bid</option>
+                            <option value="ask">Ask</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="order_price" class="game-form-label form-label">Price</label>
+                        <input type="number" id="order_price" name="price" class="game-form-input form-control" step="0.01" placeholder="Enter price" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="order_quantity" class="game-form-label form-label">Quantity</label>
+                        <input type="number" id="order_quantity" name="quantity" class="game-form-input form-control" step="1" placeholder="Enter quantity" required>
+                    </div>
+                    <button type="submit" class="game-btn btn btn-secondary w-100">Submit Order</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-container mt-5">
+        <div class="row">
+            <!-- Roster Section -->
+            <div class="col-md-6">
+                <h4 class="game-section-title text-center">Player Roster</h4>
+                <div class="game-roster-container">
+                    <ul class="game-roster-list list-group">
+                        {% for player in lobby.players[:10] %}
+                            <li class="game-roster-item list-group-item d-flex justify-content-between align-items-center">
+                                <span>{{ player.name }}</span>
+                                {% if player.ready %}
+                                    <span class="badge bg-success rounded-pill">Ready</span>
+                                {% else %}
+                                    <span class="badge bg-danger rounded-pill">Not Ready</span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    <!-- Scrollable if more than 10 players -->
+                    {% if lobby.players|length > 10 %}
+                        <div class="text-center mt-3">
+                            <button class="game-btn btn btn-secondary btn-sm" onclick="scrollToFullRoster()">View Full Roster</button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Trade History Section -->
+            <div class="col-md-6">
+                <h4 class="game-section-title text-center">Trade History</h4>
+                <div class="game-trade-history-container">
+                    <table class="game-trade-history-table table table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Price</th>
+                                <th class="text-center">Quantity</th>
+                                <th class="text-center">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in trade_history[:10] %}
+                                <tr>
+                                    <td class="text-center">{{ trade.price }}</td>
+                                    <td class="text-center">{{ trade.quantity }}</td>
+                                    <td class="text-center">{{ trade.created_at }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <!-- Scrollable if more than 10 trades -->
+                    {% if trade_history|length > 10 %}
+                        <div class="text-center mt-3">
+                            <button class="game-btn btn btn-secondary btn-sm" onclick="scrollToFullTradeHistory()">View Full History</button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leave and End Game Buttons -->
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-6 text-center">
+                <form action="{{ url_for('leave_lobby', lobby_id=lobby.id) }}" method="POST">
+                    <button type="submit" class="btn btn-danger w-100">Leave Game</button>
+                </form>
+            </div>
+            <div class="col-md-6 text-center">
+                <form action="{{ url_for('end_game', lobby_id=lobby.id) }}" method="POST">
+                    <button type="submit" class="btn btn-danger w-100">End Game</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
 {% endblock %}

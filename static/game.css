@@ -1,0 +1,206 @@
+/* General Styles for Game Page */
+body {
+    background-color: #f4f4f9; /* Light background for the page */
+    font-family: Arial, sans-serif;
+}
+
+h1, h4 {
+    color: #dc3545; /* Main title color (red theme for branding) */
+}
+
+.game-container {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #fff; /* White background for the main container */
+    border-radius: 10px;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Market Orders Section */
+.game-market-display {
+    max-height: 400px; /* Set max height for scrolling */
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    padding: 10px;
+}
+
+.game-market-table {
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    border-collapse: collapse;
+}
+
+.game-market-table thead th {
+    background-color: #e9ecef; /* Table header background */
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 10px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.game-market-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa; /* Light gray for alternate rows */
+}
+
+.game-market-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+.game-market-table tbody tr td {
+    padding: 8px;
+}
+
+.game-bid-column {
+    color: #28a745; /* Green for bids */
+}
+
+.game-ask-column {
+    color: #dc3545; /* Red for asks */
+}
+
+/* Player Actions Section */
+.game-player-action-form {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.game-player-action-form label {
+    font-weight: bold;
+}
+
+.game-player-action-form input, 
+.game-player-action-form select, 
+.game-player-action-form button {
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 100%;
+}
+
+.game-player-action-form button {
+    background-color: #dc3545;
+    color: #fff;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.game-player-action-form button:hover {
+    background-color: #c82333;
+}
+
+/* Roster Section */
+.game-roster-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 10px;
+    background-color: #f8f9fa;
+}
+
+.game-roster-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.game-roster-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-bottom: 5px;
+    background-color: #ffffff;
+}
+
+.game-roster-item .badge {
+    font-size: 12px;
+}
+
+/* Trade History Section */
+.game-trade-history-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 10px;
+    background-color: #f8f9fa;
+}
+
+.game-trade-history-table {
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    border-collapse: collapse;
+}
+
+.game-trade-history-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #e9ecef;
+    z-index: 2;
+    padding: 10px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.game-trade-history-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+.game-trade-history-table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+.game-trade-history-table tbody tr td {
+    padding: 8px;
+}
+
+/* Buttons */
+.game-btn {
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.game-btn-success {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+}
+
+.game-btn-success:hover {
+    background-color: #218838;
+}
+
+.game-btn-danger {
+    background-color: #dc3545;
+    color: #fff;
+    border: none;
+}
+
+.game-btn-danger:hover {
+    background-color: #c82333;
+}
+
+.game-btn-secondary {
+    background-color: #6c757d;
+    color: #fff;
+    border: none;
+}
+
+.game-btn-secondary:hover {
+    background-color: #5a6268;
+}
