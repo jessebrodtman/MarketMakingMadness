@@ -9,7 +9,7 @@ from functools import wraps
 from markets import get_random_market, get_market_answer, get_all_markets, add_market
 from bots import Bot, BOTS, create_bot, remove_bot, get_bots_in_lobby
 import random
-
+from datetime import datetime, timedelta
 
 # Configure application
 app = Flask(__name__)
@@ -284,14 +284,18 @@ def handle_exception(e):
 @app.route("/create_lobby", methods=["GET", "POST"])
 @login_required
 def create_lobby():
+    """
+    Create a new game lobby, assign a random market, and add it to the list of lobbies.
+    """
     if request.method == "POST":
-        lobby_name = request.form['lobby_name']
-        max_players = request.form['max_players']
+        # Get lobby details from the form
+        lobby_name = request.form.get("lobby_name")
+        max_players = request.form.get("max_players")
         
         # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
             flash("Max players must be a positive number", "danger")
-            return redirect(url_for('play'))
+            return redirect(url_for("play"))
 
         # Generate a unique lobby ID
         lobby_id = str(uuid.uuid4())
@@ -302,21 +306,28 @@ def create_lobby():
 
         # Create the lobby object
         new_lobby = {
-            'id': lobby_id,
-            'name': lobby_name,
-            'max_players': max_players,
-            'current_players': 0,
-            'status': 'waiting',
-            'players': [],
-            'market_question': market['question'],  # Add the market question to the lobby object
+            "id": lobby_id,
+            "name": lobby_name,
+            "max_players": int(max_players),
+            "current_players": 0,
+            "status": "waiting",
+            "players": [],
+            "market_question": market["question"],  # Add the market question to the lobby object
         }
         lobbies.append(new_lobby)
-        
-        # Notify via SocketIO
-        socketio.emit('lobby_update', new_lobby)
-        return redirect(url_for('join_lobby', lobby_id=new_lobby['id']))
 
-    return render_template
+        # Notify via SocketIO (if needed)
+        socketio.emit("lobby_update", new_lobby)
+
+        # Redirect to the lobby page
+        return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
+    # Render the play page if the method is GET
+    return render_template("play.html")
+
+
+
+
 
 
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
@@ -665,3 +676,9 @@ def start_bot_trading(lobby_id):
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+if __name__ == "__main__":
+    app.run(debug=True)

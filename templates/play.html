@@ -19,7 +19,7 @@
             <div class="col-md-4 mb-3">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title> {{ lobby.name }} </h5>
+                        <h5 class="card-title"> {{ lobby.name }} </h5>
                         <p class="card-text">Players: {{ lobby.current_players }} / {{ lobby.max_players }}</p>
                         <p class="card-text">Status: {{ lobby.status }}</p>
                         <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-success">Join</a>
@@ -38,7 +38,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form action="{{ url_for('create_lobby')}}" method="post">
-                    <div class="modal-body>
+                    <div class="modal-body">
                         <div class="mb-3">
                             <label for="lobby_name" class="form-label">Lobby Name</label>
                             <input type="text" class="form-control" id="lobby_name" name="lobby_name" required>
@@ -50,9 +50,11 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="submit" class="btn btn-primary">Create Lobby</button>
                     </div>
+                    
                 </form>
             </div>
         </div>
     </div>
+
 </div>
 {% endblock %}

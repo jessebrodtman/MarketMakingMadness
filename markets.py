@@ -110,11 +110,12 @@ MARKETS = {
 
 def get_random_market():
     """
-    Returns a random market question and its correct answer.
+    Returns a random market question and its correct answer as a dictionary.
     """
     question = random.choice(list(MARKETS.keys()))
     answer = MARKETS[question]
-    return question, answer
+    return {"question": question, "fair_value": answer}
+
 
 def get_market_answer(market_question):
     """
