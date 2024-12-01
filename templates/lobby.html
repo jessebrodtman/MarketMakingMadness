@@ -1,4 +1,3 @@
-
 {% extends "layout.html" %}
 
 {% block title %} Lobby {% endblock %}
@@ -96,4 +95,60 @@
         
     </div>
 </div>
+
+<!-- JavaScript for Heartbeat -->
+<script>
+    const lobbyId = "{{ lobby.id }}";
+    let heartbeatFailures = 0;
+    const maxFailures = 3;
+
+    function sendHeartbeat() {
+        fetch(`/heartbeat/${lobbyId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                heartbeatFailures = 0; // Reset failure counter on success
+            } else {
+                console.error("Heartbeat failed:", data.message);
+                heartbeatFailures++;
+                if (heartbeatFailures >= maxFailures) {
+                    alert("Connection to the server lost. Please rejoin the lobby.");
+                    clearInterval(heartbeatInterval);
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Error sending heartbeat:", error);
+            heartbeatFailures++;
+            if (heartbeatFailures >= maxFailures) {
+                alert("Connection to the server lost. Please rejoin the lobby.");
+                clearInterval(heartbeatInterval);
+            }
+        });
+    }
+
+    // Send a heartbeat every 10 seconds
+    const heartbeatInterval = setInterval(sendHeartbeat, 10000);
+
+    // Clean up interval on navigation
+    window.addEventListener("beforeunload", () => {
+        clearInterval(heartbeatInterval);
+    });
+
+    // Pause heartbeat when the tab is inactive
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            clearInterval(heartbeatInterval);
+        } else {
+            setInterval(sendHeartbeat, 10000);
+        }
+    });
+</script>
+
+
 {% endblock %}

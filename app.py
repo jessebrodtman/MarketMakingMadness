@@ -820,3 +820,65 @@ def start_bot_trading(lobby_id):
 
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
+
+
+
+
+# Handling Inactive Users in a Lobby (Ones that leave, etc.)
+@app.route("/heartbeat/<lobby_id>", methods=["POST"])
+@login_required
+def heartbeat(lobby_id):
+    """
+    Handle heartbeat requests from the client to confirm their presence in the lobby.
+    """
+    username = session.get("username")
+    if not username:
+        return {"status": "error", "message": "User not logged in"}, 401
+
+    # Locate the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        return {"status": "error", "message": "Lobby not found"}, 404
+
+    # Locate the user in the lobby
+    player = next((p for p in lobby["players"] if p["name"] == username), None)
+    if not player:
+        return {"status": "error", "message": "User not in lobby"}, 404
+
+    # Update the player's last active timestamp
+    player["last_active"] = datetime.now()
+
+    return {"status": "success", "message": "Heartbeat received"}, 200
+
+
+def remove_inactive_users():
+    """
+    Periodically remove inactive users from all lobbies and clean up empty or bot-only lobbies.
+    """
+    now = datetime.now()
+    timeout = timedelta(seconds=30)  # Timeout duration for inactivity
+    active_lobbies = []
+
+    for lobby in lobbies:
+        active_players = []
+        for player in lobby["players"]:
+            # Check if the player is inactive
+            if "last_active" in player and now - player["last_active"] > timeout:
+                print(f"Removing inactive user: {player['name']} from lobby {lobby['id']}")
+            else:
+                active_players.append(player)
+
+        # Update the lobby's player list
+        lobby["players"] = active_players
+
+        # If lobby contains only bots, initiate cleanup
+        if any(not player["name"].startswith("Bot") for player in lobby["players"]):
+            active_lobbies.append(lobby)
+        else:
+            print(f"Cleaning up lobby with only bots: {lobby['id']}")
+            cleanup_all(lobby["id"])
+
+    # Update global lobbies list with active lobbies
+    global lobbies
+    lobbies = active_lobbies
+
