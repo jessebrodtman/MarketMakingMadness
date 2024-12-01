@@ -1,3 +1,4 @@
+
 {% extends "layout.html" %}
 
 {% block title %} Lobby {% endblock %}
@@ -5,7 +6,7 @@
 {% block main %}
 <div class="container mt-5">
     <h1 class="text-center mb-4">Lobby: {{ lobby.name }}</h1>
-    <p class="text-center">Players: {{ lobby.current_players }} / {{ lobby.max_players }}</p>
+    <p class="text-center">Players: {{ lobby.players | length }} / {{ lobby.max_players }}</p>
     <p class="text-center">Status: {{ lobby.status }}</p>
 
     <!-- Market Question -->
@@ -57,16 +58,18 @@
         </form>
     </div>
 
-    <!-- Ready Button -->
+    <!-- Ready/Unready Button -->
     <div class="text-center mt-4">
         {% for player in lobby.players %}
             {% if player.name == session.get("username") %}
                 {% if not player.ready %}
-                    <form action="{{ url_for('mark_ready', lobby_id=lobby.id) }}" method="post">
+                    <form action="{{ url_for('toggle_ready', lobby_id=lobby.id) }}" method="post">
                         <button type="submit" class="btn btn-success">Ready</button>
                     </form>
                 {% else %}
-                    <button class="btn btn-secondary" disabled>Ready</button>
+                <form action="{{ url_for('toggle_ready', lobby_id=lobby.id) }}" method="post">
+                    <button type="submit" class="btn btn-success">Not Ready</button>
+                </form>
                 {% endif %}
             {% endif %}
         {% endfor %}
@@ -74,11 +77,9 @@
 
     <!-- Start Game Button -->
     <div class="text-center mt-4">
-        {% if lobby.current_players > 1 and lobby.status != "in_progress" %}
-            <form action="{{ url_for('start_game', lobby_id=lobby.id) }}" method="post">
-                <button type="submit" class="btn btn-success">Start Game</button>
-            </form>
-        {% endif %}
+        <form action="{{ url_for('start_game', lobby_id=lobby.id) }}" method="post">
+            <button type="submit" class="btn btn-success">Start Game</button>
+        </form>
     </div>
     <!-- Leave Lobby Button -->
     <div class="text-center mt-4">

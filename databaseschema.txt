@@ -1,0 +1,61 @@
+CREATE TABLE IF NOT EXISTS "users" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL
+);
+
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL,          -- Links to a specific game
+    user_id INTEGER NOT NULL,          -- User who placed the order
+    order_type TEXT NOT NULL,          -- 'bid' or 'ask'
+    price REAL NOT NULL,               -- Price of the bid or ask
+    quantity REAL NOT NULL,            -- Quantity being quoted
+    is_active BOOLEAN DEFAULT TRUE,    -- True = active, False = filled/cancelled
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL,          -- Links to a specific game
+    buyer_id INTEGER NOT NULL,         -- User who bought the asset
+    seller_id INTEGER NOT NULL,        -- User who sold the asset
+    price REAL NOT NULL,               -- Price at which the trade occurred
+    quantity REAL NOT NULL,            -- Quantity traded
+    trade_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id),
+    FOREIGN KEY (buyer_id) REFERENCES users(id),
+    FOREIGN KEY (seller_id) REFERENCES users(id)
+);
+
+CREATE TABLE game_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    game_id INTEGER NOT NULL,
+    scenario TEXT NOT NULL,
+    pnl REAL NOT NULL,
+    accuracy REAL NOT NULL,
+    time_taken REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE games (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    lobby_name TEXT
+);
+
+CREATE TABLE game_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, -- Unique participant ID
+    game_id TEXT NOT NULL,                -- References `games.id`
+    user_id TEXT NOT NULL,                -- User or bot ID
+    pnl REAL DEFAULT 0,                   -- Profit or loss of the participant
+    accuracy REAL DEFAULT 0,              -- Accuracy of the participant (if applicable)
+    time_taken REAL DEFAULT 0,            -- Time taken by the participant (if applicable)
+    trades_completed INTEGER DEFAULT 0,   -- Total trades completed by the participant
+    FOREIGN KEY (game_id) REFERENCES games (id)
+);

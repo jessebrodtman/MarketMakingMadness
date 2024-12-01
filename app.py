@@ -145,7 +145,7 @@ def register():
     
 @app.route("/play", methods=["GET", "POST"])
 @login_required
-def game():
+def play():
     return render_template("play.html", lobbies = lobbies)
 
 @app.route("/history")
@@ -359,7 +359,7 @@ def create_lobby():
         # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
             flash("Max players must be a positive number", "danger")
-            return redirect(url_for("game"))
+            return redirect(url_for("play"))
 
         # Generate a unique lobby ID
         lobby_id = str(uuid.uuid4())
@@ -411,12 +411,17 @@ def join_lobby(lobby_id):
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
-        return redirect(url_for("game"))
+        return redirect(url_for("play"))
 
     # Prevent joining if the lobby is full
-    if lobby["current_players"] >= int(lobby["max_players"]):
+    if len(lobby["players"]) >= int(lobby["max_players"]):
         flash("Lobby is full", "danger")
-        return redirect(url_for("game"))
+        return redirect(url_for("play"))
+    
+    # Prevent joining if the game has already started
+    if lobby["status"] == "in_progress":
+        flash("Game has already started", "danger")
+        return redirect(url_for("play"))
 
     # Add the player to the lobby if not already present
     if not any(player["name"] == player_name for player in lobby["players"]):
@@ -427,15 +432,15 @@ def join_lobby(lobby_id):
     return render_template("lobby.html", lobby=lobby)
 
 
-@app.route("/mark_ready/<lobby_id>", methods=["GET", "POST"])
+@app.route("/toggle_ready/<lobby_id>", methods=["GET", "POST"])
 @login_required
-def mark_ready(lobby_id):
+def toggle_ready(lobby_id):
     for lobby in lobbies:
         if lobby['id'] == lobby_id:
             player_name = session.get('username')
             player = next((player for player in lobby['players'] if player['name'] == player_name), None)
             if player:
-                player['ready'] = True
+                player['ready'] = not player['ready']
                 socketio.emit('player_ready', {'player_name': player_name, 'lobby_id': lobby_id})
             return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
@@ -536,7 +541,7 @@ def player_trade(lobby_id):
     # Execute the trade using the generalized function
     execute_trade(lobby_id, user_id, trade_type, trade_price)
 
-    return redirect(url_for("game", lobby_id=lobby_id))
+    return redirect(url_for("play", lobby_id=lobby_id))
 
 # Lobby / Game Cleanup Functions
 def cleanup_lobby(lobby_id):
@@ -612,7 +617,7 @@ def leave_lobby(lobby_id):
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
-        return redirect(url_for("game"))
+        return redirect(url_for("play"))
 
     # Remove the player from the lobby
     lobby["players"] = [player for player in lobby["players"] if player["name"] != player_name]
@@ -624,8 +629,42 @@ def leave_lobby(lobby_id):
         end_game(lobby_id)  # Call the end_game function directly
 
     flash("You have left the lobby", "success")
-    return redirect(url_for("game"))
+    return redirect(url_for("play"))
 
+@app.route("/start_game/<lobby_id>", methods=["POST"])
+@login_required
+def start_game(lobby_id):
+    """
+    Start the game for a given lobby.
+
+    Args:
+        lobby_id (str): The ID of the lobby to start the game for.
+    """
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for("play"))
+
+    # Check if the lobby has enough players to start
+    if len(lobby["players"]) < 2:
+        flash("Lobby must have at least 2 players to start", "danger")
+        return redirect(url_for("join_lobby", lobby_id=lobby_id))
+    
+    #make sure all players are ready
+    for player in lobby["players"]:
+        if not player["ready"]:
+            flash("All players must be ready to start the game", "danger")
+            return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
+    # Update the lobby status to "in_progress"
+    lobby["status"] = "in_progress"
+
+    # Notify players via SocketIO
+    socketio.emit("game_start", lobby_id)
+
+    flash("Game has started", "success")
+    return render_template("game.html", lobby=lobby)
 
 @app.route("/end_game/<lobby_id>", methods=["POST"])
 @login_required
@@ -643,9 +682,6 @@ def end_game(lobby_id):
         flash("An error occurred while ending the game. Please try again.", "danger")
         print(e)
     return redirect(url_for('game'))
-
-
-
 
 # Bot Helper Functions and Routes
 def get_current_market_state(lobby_id):
@@ -693,7 +729,6 @@ def get_current_market_state(lobby_id):
         "recent_trades": recent_trades,
     }
 
-
 @app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def add_bot_to_lobby(lobby_id):
@@ -705,10 +740,10 @@ def add_bot_to_lobby(lobby_id):
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
-        return redirect(url_for("game"))
+        return redirect(url_for("play"))
 
     # Check if the lobby is full
-    if lobby["current_players"] >= int(lobby["max_players"]):
+    if len(lobby["players"]) >= int(lobby["max_players"]):
         flash("Lobby is full. Cannot add more players or bots.", "danger")
         return redirect(url_for("join_lobby", lobby_id=lobby_id))
 
@@ -716,6 +751,7 @@ def add_bot_to_lobby(lobby_id):
     bot_id = str(uuid.uuid4())
     bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
     lobby["players"].append({"name": bot_name, "ready": True})  # Mark bot as ready
+    # lobby["current_players"] += 1
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
