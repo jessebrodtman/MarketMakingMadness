@@ -146,7 +146,18 @@ def register():
 @app.route("/play", methods=["GET", "POST"])
 @login_required
 def play():
-    return render_template("play.html", lobbies = lobbies)
+    username = session.get("username")
+    user_lobby_id = None
+
+    # Check if the user is already in a lobby
+    for lobby in lobbies:
+        for player in lobby["players"]:
+            if player["name"] == username:
+                user_lobby_id = lobby["id"]
+                break
+
+    return render_template("play.html", lobbies=lobbies, user_lobby_id=user_lobby_id)
+
 
 @app.route("/history")
 def history():
@@ -355,6 +366,21 @@ def create_lobby():
     """
     Create a new game lobby, assign a random market, and add it to the list of lobbies.
     """
+    player_name = session.get("username")
+
+    # Check if the user is already in a lobby
+    current_lobby_id = None
+    for lobby in lobbies:
+        for player in lobby["players"]:
+            if player["name"] == player_name:
+                current_lobby_id = lobby["id"]
+                break
+
+    # Prevent creating a new lobby if the user is already in one
+    if current_lobby_id:
+        flash("You are already in a lobby. Leave the current lobby to create a new one.", "danger")
+        return redirect(url_for("play"))
+
     if request.method == "POST":
         # Get lobby details from the form
         lobby_name = request.form.get("lobby_name")
@@ -373,7 +399,8 @@ def create_lobby():
         markets[lobby_id] = market  # Store the market in the global markets dictionary
 
         # Add to `games` table
-        create_game(lobby_id, market['question'], lobby_name)
+        create_game(lobby_id, market["question"], lobby_name)
+
         # Create the lobby object
         new_lobby = {
             "id": lobby_id,
@@ -397,6 +424,7 @@ def create_lobby():
 
 
 
+
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
 @login_required
 def join_lobby(lobby_id):
@@ -404,6 +432,19 @@ def join_lobby(lobby_id):
     Handle a user joining a lobby.
     """
     player_name = session.get("username")
+
+    # Check if the user is already in a lobby
+    current_lobby_id = None
+    for lobby in lobbies:
+        for player in lobby["players"]:
+            if player["name"] == player_name:
+                current_lobby_id = lobby["id"]
+                break
+
+    # Prevent joining another lobby if already in one
+    if current_lobby_id and current_lobby_id != lobby_id:
+        flash("You are already in another lobby. Leave that lobby to join a new one.", "danger")
+        return redirect(url_for("play"))
 
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
@@ -421,6 +462,7 @@ def join_lobby(lobby_id):
     if existing_player:
         # Update their last active timestamp
         existing_player["last_active"] = datetime.now()
+        flash("Welcome back! You have re-entered the lobby.", "success")
     else:
         # Prevent joining if the lobby is full
         if len(lobby["players"]) >= int(lobby["max_players"]):
@@ -433,6 +475,7 @@ def join_lobby(lobby_id):
         flash("You have joined the lobby", "success")
 
     return render_template("lobby.html", lobby=lobby)
+
 
 
 
