@@ -291,27 +291,18 @@ def create_game(lobby_id, scenario, lobby_name):
     """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting")
 
 
-def finalize_game_results(game_id):
+def finalize_game_results(game_id, lobby):
     """
     Populate the `game_results` table by aggregating data from the `transactions` table
     and calculating P&L based on the fair market value.
 
     Args:
         game_id (str): The ID of the game to finalize results for.
+        lobby (dict): The lobby object containing information about the game's state.
     """
-    # Retrieve the scenario and lobby ID from the `games` table
-    game_data = db.execute("""
-        SELECT id, scenario, lobby_name
-        FROM games
-        WHERE id = :game_id
-    """, game_id=game_id)
-
-    if not game_data:
-        raise ValueError(f"Game ID {game_id} does not exist in the database.")
-
-    scenario = game_data[0]["scenario"]
-    lobby_id = game_data[0]["id"]
-    lobby_name = game_data[0]["lobby_name"]
+    # Retrieve the scenario and fair value from the `lobby` dictionary
+    scenario = lobby.get("market_question")
+    lobby_id = lobby.get("id")
 
     fair_value = get_fair_value(lobby_id)
 
@@ -333,6 +324,7 @@ def finalize_game_results(game_id):
         WHERE t.game_id = :game_id
         GROUP BY t.buyer_id
     """, game_id=game_id, scenario=scenario, fair_value=fair_value)
+
 
 
 def mark_game_as_completed(game_id):
@@ -564,20 +556,25 @@ def cleanup_lobby(lobby_id):
         del markets[lobby_id]
 
 
-def cleanup_game_data(game_id):
+def cleanup_game_data(game_id, lobby):
     """
     Perform database cleanup after a game ends.
 
     Args:
         game_id (int): The ID of the game to clean up.
+        lobby (dict): The lobby object containing information about the game's state.
     """
-    # Finalize game results
-    finalize_game_results(game_id)
+    # Check the lobby status
+    if lobby["status"] == "waiting":
+        print(f"Skipping finalizing game results for game ID {game_id}. Game was never started.")
+    else:
+        # Finalize game results only if the game was started
+        finalize_game_results(game_id, lobby)
 
-    # Mark game as completed
+    # Mark game as completed in the database
     mark_game_as_completed(game_id)
 
-    # Delete old orders and transactions
+    # Delete old orders and transactions from the database
     db.execute("""
         DELETE FROM orders WHERE game_id = :game_id
     """, game_id=game_id)
@@ -587,6 +584,7 @@ def cleanup_game_data(game_id):
     """, game_id=game_id)
 
 
+
 def cleanup_all(lobby_id):
     """
     Perform a full cleanup for a given lobby, including both memory and database data.
@@ -594,12 +592,27 @@ def cleanup_all(lobby_id):
     Args:
         lobby_id (str): The ID of the lobby to clean up.
     """
+    try:
+        # Find the lobby in the global `lobbies` list
+        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        if not lobby:
+            print(f"No lobby found with ID {lobby_id}. Skipping cleanup.")
+            return
 
-    # Perform database cleanup
-    cleanup_game_data(lobby_id)
+        print(f"Starting full cleanup for lobby ID: {lobby_id}")
 
-    # Perform memory cleanup
-    cleanup_lobby(lobby_id)
+        # Perform memory cleanup
+        cleanup_lobby(lobby_id)
+
+        # Perform database cleanup
+        cleanup_game_data(lobby_id, lobby)
+
+        print(f"Full cleanup for lobby ID {lobby_id} completed successfully.")
+
+    except Exception as e:
+        print(f"Error during full cleanup for lobby ID {lobby_id}: {e}")
+        raise
+
 
     
 @app.route("/leave_lobby/<lobby_id>", methods=["POST"])
@@ -631,7 +644,7 @@ def leave_lobby(lobby_id):
     if all(player.get("is_bot", False) for player in lobby["players"]):
         print(f"Lobby {lobby['id']} has only bots. Ending game.")
         cleanup_all(lobby["id"])
-        
+
     flash("You have left the lobby", "success")
     return redirect(url_for("play"))
 
