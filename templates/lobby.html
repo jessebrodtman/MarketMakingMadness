@@ -96,6 +96,18 @@
     </div>
 </div>
 
+<script>
+    const socket = io();
+    const lobbyId = "{{ lobby.id }}";
+    const username = "{{ session.get('username') }}";
+
+    socket.emit("join_room_event", { lobby_id: lobbyId, username });
+    window.addEventListener("beforeunload", () => {
+        socket.emit("leave_room_event", { lobby_id: lobbyId, username });
+    });
+</script>
+
+
 <!-- JavaScript for Heartbeat -->
 <!-- <script>
     const lobbyId = "{{ lobby.id }}";
