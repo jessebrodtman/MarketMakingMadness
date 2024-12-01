@@ -166,7 +166,7 @@ def history():
             IFNULL(SUM(pnl), 0) AS total_pnl,
             IFNULL(COUNT(id), 0) AS total_games,
             IFNULL(MAX(pnl), 0) AS best_pnl
-        FROM games 
+        FROM game_results 
         WHERE user_id = :user_id
     """, user_id=user_id)[0]
 
