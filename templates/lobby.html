@@ -97,10 +97,9 @@
 </div>
 
 <!-- JavaScript for Heartbeat -->
-<script>
+<!-- <script>
     const lobbyId = "{{ lobby.id }}";
-    let heartbeatFailures = 0;
-    const maxFailures = 3;
+    let heartbeatInterval;
 
     function sendHeartbeat() {
         fetch(`/heartbeat/${lobbyId}`, {
@@ -111,44 +110,38 @@
         })
         .then(response => response.json())
         .then(data => {
-            if (data.status === "success") {
-                heartbeatFailures = 0; // Reset failure counter on success
-            } else {
+            if (data.status !== "success") {
                 console.error("Heartbeat failed:", data.message);
-                heartbeatFailures++;
-                if (heartbeatFailures >= maxFailures) {
-                    alert("Connection to the server lost. Please rejoin the lobby.");
-                    clearInterval(heartbeatInterval);
-                }
             }
         })
-        .catch(error => {
-            console.error("Error sending heartbeat:", error);
-            heartbeatFailures++;
-            if (heartbeatFailures >= maxFailures) {
-                alert("Connection to the server lost. Please rejoin the lobby.");
-                clearInterval(heartbeatInterval);
+        .catch(error => console.error("Error sending heartbeat:", error));
+    }
+
+    function leaveLobbyOnUnload() {
+        fetch(`/leave_lobby/${lobbyId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
             }
-        });
+        })
+        .then(response => {
+            if (!response.ok) {
+                console.error("Failed to leave lobby on unload");
+            }
+        })
+        .catch(error => console.error("Error leaving lobby on unload:", error));
     }
 
     // Send a heartbeat every 10 seconds
-    const heartbeatInterval = setInterval(sendHeartbeat, 10000);
+    heartbeatInterval = setInterval(sendHeartbeat, 10000);
 
-    // Clean up interval on navigation
-    window.addEventListener("beforeunload", () => {
-        clearInterval(heartbeatInterval);
-    });
+    // When the user navigates away or closes the tab, leave the lobby
+    window.addEventListener("beforeunload", leaveLobbyOnUnload);
 
-    // Pause heartbeat when the tab is inactive
-    document.addEventListener("visibilitychange", () => {
-        if (document.hidden) {
-            clearInterval(heartbeatInterval);
-        } else {
-            setInterval(sendHeartbeat, 10000);
-        }
-    });
-</script>
+    // Clear heartbeat interval when the page is unloaded
+    window.addEventListener("unload", () => clearInterval(heartbeatInterval));
+</script> -->
+
 
 
 {% endblock %}

@@ -281,6 +281,18 @@ def handle_exception(e):
     return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
 
 # Helper Functions for Databases and Lobbies
+def is_lobby_full(lobby):
+    """
+    Check if a lobby is full, considering both humans and bots.
+
+    Args:
+        lobby (dict): The lobby object.
+
+    Returns:
+        bool: True if the lobby is full, False otherwise.
+    """
+    return len(lobby["players"]) >= int(lobby["max_players"])
+
 def create_game(lobby_id, scenario, lobby_name):
     """
     Create a new game in the `games` table.
@@ -385,17 +397,11 @@ def create_lobby():
 
 
 
-
-
-
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
 @login_required
 def join_lobby(lobby_id):
     """
     Handle a user joining a lobby.
-
-    Args:
-        lobby_id (str): The ID of the lobby being joined.
     """
     player_name = session.get("username")
 
@@ -405,23 +411,30 @@ def join_lobby(lobby_id):
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
 
-    # Prevent joining if the lobby is full
-    if len(lobby["players"]) >= int(lobby["max_players"]):
-        flash("Lobby is full", "danger")
-        return redirect(url_for("play"))
-    
     # Prevent joining if the game has already started
     if lobby["status"] == "in_progress":
         flash("Game has already started", "danger")
         return redirect(url_for("play"))
 
-    # Add the player to the lobby if not already present
-    if not any(player["name"] == player_name for player in lobby["players"]):
-        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False})
+    # Check if the user is already in the lobby
+    existing_player = next((p for p in lobby["players"] if p["name"] == player_name), None)
+    if existing_player:
+        # Update their last active timestamp
+        existing_player["last_active"] = datetime.now()
+    else:
+        # Prevent joining if the lobby is full
+        if len(lobby["players"]) >= int(lobby["max_players"]):
+            flash("Lobby is full", "danger")
+            return redirect(url_for("play"))
+
+        # Add the player to the lobby
+        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False, "last_active": datetime.now()})
         lobby["current_players"] += 1
-    
-    flash("You have joined the lobby", "success")
+        flash("You have joined the lobby", "success")
+
     return render_template("lobby.html", lobby=lobby)
+
+
 
 
 @app.route("/toggle_ready/<lobby_id>", methods=["GET", "POST"])
@@ -749,6 +762,9 @@ def get_current_market_state(lobby_id):
 @app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def add_bot_to_lobby(lobby_id):
+    """
+    Add a bot to a lobby, ensuring proper handling of player counts and status.
+    """
     bot_name = request.form.get("bot_name", "DefaultBot")
     bot_level = request.form.get("bot_level", "medium")
     bot_name = f"{bot_name} ({bot_level})"
@@ -760,18 +776,18 @@ def add_bot_to_lobby(lobby_id):
         return redirect(url_for("play"))
 
     # Check if the lobby is full
-    if len(lobby["players"]) >= int(lobby["max_players"]):
-        flash("Lobby is full. Cannot add more players or bots.", "danger")
+    if is_lobby_full(lobby):
+        flash("Cannot add bot: Lobby is full", "warning")
         return redirect(url_for("join_lobby", lobby_id=lobby_id))
 
     # Add bot to the lobby
     bot_id = str(uuid.uuid4())
     bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
-    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True})  # Mark bot as ready
-    # lobby["current_players"] += 1
+    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now()})  # Mark bot as ready
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
 
 
 @app.route("/bot_action/<lobby_id>", methods=["POST"])
@@ -821,10 +837,44 @@ def start_bot_trading(lobby_id):
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
-
-
-
+'''
 # Handling Inactive Users in a Lobby (Ones that leave, etc.)
+def remove_inactive_users():
+    """
+    Periodically remove inactive users from all lobbies and clean up empty or bot-only lobbies.
+    """
+    # Update global lobbies list with active lobbies
+    global lobbies
+    lobbies = active_lobbies
+
+    now = datetime.now()
+    timeout = timedelta(seconds=30)  # Timeout duration for inactivity
+    active_lobbies = []
+
+    for lobby in lobbies:
+        active_players = []
+        for player in lobby["players"]:
+            # Check if the player is a human and inactive
+            if not player["is_bot"] and "last_active" in player and now - player["last_active"] > timeout:
+                print(f"Removing inactive user: {player['name']} from lobby {lobby['id']}")
+            else:
+                # Keep the player (either active or a bot)
+                active_players.append(player)
+
+        # Update the lobby's player list
+        lobby["players"] = active_players
+
+        # Check if there are still humans in the lobby
+        has_human_players = any(not player["is_bot"] for player in lobby["players"])
+
+        # If the lobby contains only bots, initiate cleanup
+        if has_human_players:
+            active_lobbies.append(lobby)
+        else:
+            print(f"Cleaning up lobby with only bots: {lobby['id']}")
+            cleanup_all(lobby["id"])
+
+    
 @app.route("/heartbeat/<lobby_id>", methods=["POST"])
 @login_required
 def heartbeat(lobby_id):
@@ -835,50 +885,22 @@ def heartbeat(lobby_id):
     if not username:
         return {"status": "error", "message": "User not logged in"}, 401
 
-    # Locate the lobby
+    # Update user's last active timestamp in the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         return {"status": "error", "message": "Lobby not found"}, 404
 
-    # Locate the user in the lobby
-    player = next((p for p in lobby["players"] if p["name"] == username), None)
-    if not player:
-        return {"status": "error", "message": "User not in lobby"}, 404
+    # Find the user in the lobby and update their last active time
+    for player in lobby["players"]:
+        if player["name"] == username:
+            player["last_active"] = datetime.now()
 
-    # Update the player's last active timestamp
-    player["last_active"] = datetime.now()
+    # Perform cleanup for inactive users
+    remove_inactive_users()
 
     return {"status": "success", "message": "Heartbeat received"}, 200
 
 
-def remove_inactive_users():
-    """
-    Periodically remove inactive users from all lobbies and clean up empty or bot-only lobbies.
-    """
-    now = datetime.now()
-    timeout = timedelta(seconds=30)  # Timeout duration for inactivity
-    active_lobbies = []
 
-    for lobby in lobbies:
-        active_players = []
-        for player in lobby["players"]:
-            # Check if the player is inactive
-            if "last_active" in player and now - player["last_active"] > timeout:
-                print(f"Removing inactive user: {player['name']} from lobby {lobby['id']}")
-            else:
-                active_players.append(player)
 
-        # Update the lobby's player list
-        lobby["players"] = active_players
-
-        # If lobby contains only bots, initiate cleanup
-        if any(not player["name"].startswith("Bot") for player in lobby["players"]):
-            active_lobbies.append(lobby)
-        else:
-            print(f"Cleaning up lobby with only bots: {lobby['id']}")
-            cleanup_all(lobby["id"])
-
-    # Update global lobbies list with active lobbies
-    global lobbies
-    lobbies = active_lobbies
-
+'''
