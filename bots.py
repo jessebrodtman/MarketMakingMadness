@@ -39,12 +39,11 @@ class Bot:
 
     def generate_bid_ask(self):
         """
-        Generate a bid/ask price based on the bot level and current market state.
+        Generate a bid/ask price based on the bot level, current market state, and market depth.
 
         Returns:
             tuple: (bid_price, ask_price)
         """
-        # Calculate noise and randomness based on bot level
         level_noise = {
             "easy": random.uniform(5, 10),
             "medium": random.uniform(2, 5),
@@ -53,26 +52,31 @@ class Bot:
         }
         noise = level_noise.get(self.level, random.uniform(2, 5))
 
-        # Calculate reliance on fair value vs. market state based on market maturity
+        # Weigh fair value vs. market state based on maturity
         maturity_factor = min(self.market_maturity / 20, 1)  # Gradually increases to 1
         weight_on_market = maturity_factor
         weight_on_fair_value = 1 - maturity_factor
 
-        # Extract current market data
+        # Extract market depth and calculate weighted bid/ask
         best_bid = self.market_state.get("best_bid", {"price": self.fair_value - noise})["price"]
         best_ask = self.market_state.get("best_ask", {"price": self.fair_value + noise})["price"]
 
-        # Generate bid/ask prices influenced by both fair value and market conditions
+        all_bids = self.market_state.get("all_bids", [])
+        all_asks = self.market_state.get("all_asks", [])
+        avg_bid_depth = sum(bid["quantity"] for bid in all_bids) / len(all_bids) if all_bids else 1
+        avg_ask_depth = sum(ask["quantity"] for ask in all_asks) / len(all_asks) if all_asks else 1
+
         bid_price = (
             weight_on_market * (best_bid + random.uniform(-1, 0.5)) +
             weight_on_fair_value * (self.fair_value - noise)
-        )
+        ) + random.uniform(-avg_bid_depth / 10, avg_bid_depth / 10)
+
         ask_price = (
             weight_on_market * (best_ask + random.uniform(0.5, 1)) +
             weight_on_fair_value * (self.fair_value + noise)
-        )
+        ) + random.uniform(-avg_ask_depth / 10, avg_ask_depth / 10)
 
-        # Ensure the spread is valid
+        # Ensure valid spread
         if ask_price <= bid_price:
             ask_price = bid_price + random.uniform(0.5, 1)
 
@@ -83,8 +87,8 @@ class Bot:
 
     def decide_to_trade(self):
         """
-        Decide whether the bot will execute a trade based on market conditions
-        and recent activity in the market.
+        Decide whether the bot will execute a trade based on market conditions,
+        depth, and recent activity in the market.
 
         Returns:
             dict: Trade details if the bot chooses to trade, otherwise None.
@@ -96,18 +100,14 @@ class Bot:
         # Adjust trading probability based on market activity
         trade_frequency_modifier = self._get_trade_frequency_modifier(last_trades)
 
-        # Example logic: Decide to buy or sell based on current bid/ask
-        if random.random() < trade_frequency_modifier:
-            if best_ask and random.random() < 0.6:  # 60% chance to buy
-                # Simulate a buy
-                trade = {"type": "buy", "price": best_ask["price"]}
-                self.pnl -= best_ask["price"]  # Adjust P&L
-                return trade
-            elif best_bid and random.random() < 0.4:  # 40% chance to sell
-                # Simulate a sell
-                trade = {"type": "sell", "price": best_bid["price"]}
-                self.pnl += best_bid["price"]  # Adjust P&L
-                return trade
+        # Adjust based on spread and depth
+        spread = (best_ask["price"] - best_bid["price"]) if best_ask and best_bid else None
+        if spread and spread > random.uniform(1, 5):  # Favor trading in wider spreads
+            if random.random() < trade_frequency_modifier:
+                if best_ask and random.random() < 0.6:
+                    return {"type": "buy", "price": best_ask["price"]}
+                elif best_bid and random.random() < 0.4:
+                    return {"type": "sell", "price": best_bid["price"]}
 
         return None
 
@@ -123,7 +123,7 @@ class Bot:
         """
         now = datetime.now()
         recent_trades = [
-            trade for trade in last_trades if now - trade["timestamp"] < timedelta(seconds=30)
+            trade for trade in last_trades if now - trade["created_at"] < timedelta(seconds=30)
         ]
         activity_level = len(recent_trades)
 
@@ -133,7 +133,20 @@ class Bot:
             return 0.3
         else:
             return 0.6  # High activity, higher trade frequency
-    
+
+    def update_pnl(self, trade_price, trade_type):
+        """
+        Update the bot's P&L based on completed trades.
+
+        Args:
+            trade_price (float): Price at which the trade was executed.
+            trade_type (str): Either 'buy' or 'sell'.
+        """
+        if trade_type == "buy":
+            self.pnl -= trade_price
+        elif trade_type == "sell":
+            self.pnl += trade_price
+
     def should_update_quotes(self):
         """
         Decide whether the bot should post new bid/ask prices based on market conditions.
@@ -160,7 +173,6 @@ class Bot:
 
         # Otherwise, allow the bot to update quotes
         return True
-
 
 
 
