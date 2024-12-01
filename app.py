@@ -61,7 +61,7 @@ def index():
             SELECT 
                 IFNULL(SUM(pnl), 0) AS total_pnl,
                 IFNULL(COUNT(id), 0) AS games_played
-            FROM games 
+            FROM game_results 
             WHERE user_id = :user_id
         """, user_id=user_id)[0]
         print(f"Stats fetched: {stats}")
@@ -659,9 +659,8 @@ def start_bot_trading(lobby_id):
         flash("No bots found in the lobby to start trading.", "warning")
         return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
-    # Start trading cycles
-    for bot in bots_in_lobby:
-        bot_action(lobby_id)  # Reuse the existing bot_action function
+    
+    bot_action(lobby_id)  # Use the existing bot_action function
 
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
