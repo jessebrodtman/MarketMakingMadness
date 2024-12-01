@@ -172,14 +172,14 @@ def history():
 
     # Calculate winning percentage
     total_games = stats["total_games"]
-    total_wins = db.execute("SELECT COUNT(id) FROM games WHERE user_id = :user_id AND pnl > 0", user_id=user_id)[0]["COUNT(id)"]
+    total_wins = db.execute("SELECT COUNT(id) FROM game_results WHERE user_id = :user_id AND pnl > 0", user_id=user_id)[0]["COUNT(id)"]
     winning_percentage = (total_wins / total_games * 100) if total_games > 0 else 0
 
     # Fetch detailed game history
     games = db.execute("""
         SELECT 
             date, scenario, pnl, accuracy, time_taken
-        FROM games 
+        FROM game_results 
         WHERE user_id = :user_id
         ORDER BY date DESC
     """, user_id=user_id)
