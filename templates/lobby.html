@@ -1,4 +1,3 @@
-
 {% extends "layout.html" %}
 
 {% block title %} Lobby {% endblock %}
@@ -96,4 +95,65 @@
         
     </div>
 </div>
+
+<script>
+    const socket = io();
+    const lobbyId = "{{ lobby.id }}";
+    const username = "{{ session.get('username') }}";
+
+    socket.emit("join_room_event", { lobby_id: lobbyId, username });
+    window.addEventListener("beforeunload", () => {
+        socket.emit("leave_room_event", { lobby_id: lobbyId, username });
+    });
+</script>
+
+
+<!-- JavaScript for Heartbeat -->
+<!-- <script>
+    const lobbyId = "{{ lobby.id }}";
+    let heartbeatInterval;
+
+    function sendHeartbeat() {
+        fetch(`/heartbeat/${lobbyId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== "success") {
+                console.error("Heartbeat failed:", data.message);
+            }
+        })
+        .catch(error => console.error("Error sending heartbeat:", error));
+    }
+
+    function leaveLobbyOnUnload() {
+        fetch(`/leave_lobby/${lobbyId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                console.error("Failed to leave lobby on unload");
+            }
+        })
+        .catch(error => console.error("Error leaving lobby on unload:", error));
+    }
+
+    // Send a heartbeat every 10 seconds
+    heartbeatInterval = setInterval(sendHeartbeat, 10000);
+
+    // When the user navigates away or closes the tab, leave the lobby
+    window.addEventListener("beforeunload", leaveLobbyOnUnload);
+
+    // Clear heartbeat interval when the page is unloaded
+    window.addEventListener("unload", () => clearInterval(heartbeatInterval));
+</script> -->
+
+
+
 {% endblock %}

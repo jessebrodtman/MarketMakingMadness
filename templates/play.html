@@ -12,8 +12,7 @@
      <div class="text-center mb-4">
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLobbyModal">Create New Lobby</button>
      </div>
-
-     <!-- List lobbies -->
+    <!-- List lobbies -->
     <div class="row">
         {% for lobby in lobbies %}
             <div class="col-md-4 mb-3">
@@ -22,7 +21,17 @@
                         <h5 class="card-title"> {{ lobby.name }} </h5>
                         <p class="card-text">Players: {{ lobby.players | length }} / {{ lobby.max_players }}</p>
                         <p class="card-text">Status: {{ lobby.status }}</p>
-                        <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-success">Join</a>
+                        {% if lobby.id == user_lobby_id %}
+                            <!-- If the user is already in this lobby -->
+                            <p class="text-success"><strong>You are in this lobby</strong></p>
+                            <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-info">Re-Enter</a>
+                        {% elif user_lobby_id %}
+                            <!-- If the user is in a different lobby -->
+                            <button class="btn btn-secondary" disabled>Cannot Join (Already in Another Lobby)</button>
+                        {% else %}
+                            <!-- If the user is not in any lobby -->
+                            <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-success">Join</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

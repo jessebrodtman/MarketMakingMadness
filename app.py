@@ -1,7 +1,7 @@
 import os
 from cs50 import SQL
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import uuid
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -146,7 +146,18 @@ def register():
 @app.route("/play", methods=["GET", "POST"])
 @login_required
 def play():
-    return render_template("play.html", lobbies = lobbies)
+    username = session.get("username")
+    user_lobby_id = None
+
+    # Check if the user is already in a lobby
+    for lobby in lobbies:
+        for player in lobby["players"]:
+            if player["name"] == username:
+                user_lobby_id = lobby["id"]
+                break
+
+    return render_template("play.html", lobbies=lobbies, user_lobby_id=user_lobby_id)
+
 
 @app.route("/history")
 def history():
@@ -281,6 +292,18 @@ def handle_exception(e):
     return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
 
 # Helper Functions for Databases and Lobbies
+def is_lobby_full(lobby):
+    """
+    Check if a lobby is full, considering both humans and bots.
+
+    Args:
+        lobby (dict): The lobby object.
+
+    Returns:
+        bool: True if the lobby is full, False otherwise.
+    """
+    return len(lobby["players"]) >= int(lobby["max_players"])
+
 def create_game(lobby_id, scenario, lobby_name):
     """
     Create a new game in the `games` table.
@@ -291,27 +314,18 @@ def create_game(lobby_id, scenario, lobby_name):
     """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting")
 
 
-def finalize_game_results(game_id):
+def finalize_game_results(game_id, lobby):
     """
     Populate the `game_results` table by aggregating data from the `transactions` table
     and calculating P&L based on the fair market value.
 
     Args:
         game_id (str): The ID of the game to finalize results for.
+        lobby (dict): The lobby object containing information about the game's state.
     """
-    # Retrieve the scenario and lobby ID from the `games` table
-    game_data = db.execute("""
-        SELECT id, scenario, lobby_name
-        FROM games
-        WHERE id = :game_id
-    """, game_id=game_id)
-
-    if not game_data:
-        raise ValueError(f"Game ID {game_id} does not exist in the database.")
-
-    scenario = game_data[0]["scenario"]
-    lobby_id = game_data[0]["id"]
-    lobby_name = game_data[0]["lobby_name"]
+    # Retrieve the scenario and fair value from the `lobby` dictionary
+    scenario = lobby.get("market_question")
+    lobby_id = lobby.get("id")
 
     fair_value = get_fair_value(lobby_id)
 
@@ -334,7 +348,6 @@ def finalize_game_results(game_id):
         GROUP BY t.buyer_id
     """, game_id=game_id, scenario=scenario, fair_value=fair_value)
 
-
 def mark_game_as_completed(game_id):
     """
     Mark the game as completed.
@@ -351,6 +364,21 @@ def create_lobby():
     """
     Create a new game lobby, assign a random market, and add it to the list of lobbies.
     """
+    player_name = session.get("username")
+
+    # Check if the user is already in a lobby
+    current_lobby_id = None
+    for lobby in lobbies:
+        for player in lobby["players"]:
+            if player["name"] == player_name:
+                current_lobby_id = lobby["id"]
+                break
+
+    # Prevent creating a new lobby if the user is already in one
+    if current_lobby_id:
+        flash("You are already in a lobby. Leave the current lobby to create a new one.", "danger")
+        return redirect(url_for("play"))
+
     if request.method == "POST":
         # Get lobby details from the form
         lobby_name = request.form.get("lobby_name")
@@ -369,7 +397,8 @@ def create_lobby():
         markets[lobby_id] = market  # Store the market in the global markets dictionary
 
         # Add to `games` table
-        create_game(lobby_id, market['question'], lobby_name)
+        create_game(lobby_id, market["question"], lobby_name)
+
         # Create the lobby object
         new_lobby = {
             "id": lobby_id,
@@ -392,20 +421,26 @@ def create_lobby():
     return render_template("play.html")
 
 
-
-
-
-
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
 @login_required
 def join_lobby(lobby_id):
     """
     Handle a user joining a lobby.
-
-    Args:
-        lobby_id (str): The ID of the lobby being joined.
     """
     player_name = session.get("username")
+
+    # Check if the user is already in a lobby
+    current_lobby_id = None
+    for lobby in lobbies:
+        for player in lobby["players"]:
+            if player["name"] == player_name:
+                current_lobby_id = lobby["id"]
+                break
+
+    # Prevent joining another lobby if already in one
+    if current_lobby_id and current_lobby_id != lobby_id:
+        flash("You are already in another lobby. Leave that lobby to join a new one.", "danger")
+        return redirect(url_for("play"))
 
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
@@ -413,23 +448,56 @@ def join_lobby(lobby_id):
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
 
-    # Prevent joining if the lobby is full
-    if len(lobby["players"]) >= int(lobby["max_players"]):
-        flash("Lobby is full", "danger")
-        return redirect(url_for("play"))
-    
     # Prevent joining if the game has already started
     if lobby["status"] == "in_progress":
         flash("Game has already started", "danger")
         return redirect(url_for("play"))
 
-    # Add the player to the lobby if not already present
-    if not any(player["name"] == player_name for player in lobby["players"]):
-        lobby["players"].append({"name": player_name, "ready": False})
+    # Check if the user is already in the lobby
+    existing_player = next((p for p in lobby["players"] if p["name"] == player_name), None)
+    if existing_player:
+        # Update their last active timestamp
+        existing_player["last_active"] = datetime.now()
+        flash("Welcome back! You have re-entered the lobby.", "success")
+    else:
+        # Prevent joining if the lobby is full
+        if len(lobby["players"]) >= int(lobby["max_players"]):
+            flash("Lobby is full", "danger")
+            return redirect(url_for("play"))
+
+        # Add the player to the lobby
+        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False, "last_active": datetime.now()})
         lobby["current_players"] += 1
-    
-    flash("You have joined the lobby", "success")
+
+        # Notify the lobby of the updated players list
+        socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
+
+        flash("You have joined the lobby", "success")
+
     return render_template("lobby.html", lobby=lobby)
+
+@socketio.on("join_room_event")
+def join_room_event(data):
+    """
+    Handle a user joining a Socket.IO room for real-time updates.
+
+    Args:
+        data (dict): Contains `lobby_id` and the player's `username`.
+    """
+    lobby_id = data.get("lobby_id")
+    username = session.get("username")
+
+    # Check if the user is logged in and the lobby exists
+    if not username or not lobby_id:
+        return {"status": "error", "message": "Invalid lobby or user"}, 400
+
+    # Join the Socket.IO room
+    join_room(lobby_id)
+    print(f"{username} joined room {lobby_id}")
+
+    # Notify others in the room
+    socketio.emit("player_joined", {"player": username}, to=lobby_id)
+
 
 
 @app.route("/toggle_ready/<lobby_id>", methods=["GET", "POST"])
@@ -468,7 +536,7 @@ def get_fair_value(lobby_id):
 
 def execute_trade(game_id, user_id, trade_type, trade_price):
     """
-    Execute a trade for a given user (bot or human).
+    Execute a trade for a given user (bot or human) and update the market in real-time.
 
     Args:
         game_id (int): The ID of the game/lobby.
@@ -480,8 +548,8 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
         # Match with the best ask
         best_ask = db.execute("""
             SELECT id, user_id, price, quantity FROM orders
-            WHERE game_id = :game_id AND type = 'ask' AND price = :trade_price
-            ORDER BY created_at ASC LIMIT 1
+            WHERE game_id = :game_id AND order_type = 'ask' AND price <= :trade_price
+            ORDER BY price ASC, created_at ASC LIMIT 1
         """, game_id=game_id, trade_price=trade_price)
 
         if best_ask:
@@ -492,7 +560,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
             db.execute("""
                 INSERT INTO transactions (game_id, buyer_id, seller_id, price, quantity, created_at)
                 VALUES (:game_id, :buyer_id, :seller_id, :price, :quantity, CURRENT_TIMESTAMP)
-            """, game_id=game_id, buyer_id=user_id, seller_id=ask["user_id"], price=trade_price, quantity=quantity_to_trade)
+            """, game_id=game_id, buyer_id=user_id, seller_id=ask["user_id"], price=ask["price"], quantity=quantity_to_trade)
 
             # Update the remaining quantity or delete the order if fulfilled
             if ask["quantity"] > quantity_to_trade:
@@ -502,12 +570,15 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
             else:
                 db.execute("DELETE FROM orders WHERE id = :id", id=ask["id"])
 
+            # Emit real-time trade update
+            socketio.emit("market_update", {"lobby_id": game_id}, room=game_id)
+
     elif trade_type == "sell":
         # Match with the best bid
         best_bid = db.execute("""
             SELECT id, user_id, price, quantity FROM orders
-            WHERE game_id = :game_id AND type = 'bid' AND price = :trade_price
-            ORDER BY created_at DESC LIMIT 1
+            WHERE game_id = :game_id AND order_type = 'bid' AND price >= :trade_price
+            ORDER BY price DESC, created_at ASC LIMIT 1
         """, game_id=game_id, trade_price=trade_price)
 
         if best_bid:
@@ -518,7 +589,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
             db.execute("""
                 INSERT INTO transactions (game_id, buyer_id, seller_id, price, quantity, created_at)
                 VALUES (:game_id, :buyer_id, :seller_id, :price, :quantity, CURRENT_TIMESTAMP)
-            """, game_id=game_id, buyer_id=bid["user_id"], seller_id=user_id, price=trade_price, quantity=quantity_to_trade)
+            """, game_id=game_id, buyer_id=bid["user_id"], seller_id=user_id, price=bid["price"], quantity=quantity_to_trade)
 
             # Update the remaining quantity or delete the order if fulfilled
             if bid["quantity"] > quantity_to_trade:
@@ -527,6 +598,9 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
                 """, quantity=quantity_to_trade, id=bid["id"])
             else:
                 db.execute("DELETE FROM orders WHERE id = :id", id=bid["id"])
+
+            # Emit real-time trade update
+            socketio.emit("market_update", {"lobby_id": game_id}, room=game_id)
 
 @app.route("/execute_trade/<lobby_id>", methods=["POST"])
 @login_required
@@ -541,7 +615,80 @@ def player_trade(lobby_id):
     # Execute the trade using the generalized function
     execute_trade(lobby_id, user_id, trade_type, trade_price)
 
+    # Emit real-time player action update
+    socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id, "action": trade_type, "price": trade_price}, room=lobby_id)
+
     return redirect(url_for("play", lobby_id=lobby_id))
+
+@app.route("/set_order/<lobby_id>", methods=["POST"])
+@login_required
+def set_order(lobby_id):
+    """
+    Handle a player setting a bid or ask in the market.
+    """
+    user_id = session["user_id"]
+    order_type = request.form.get("type")  # "bid" or "ask"
+    order_price = float(request.form.get("price"))
+    order_quantity = int(request.form.get("quantity"))
+
+    # Insert the new order into the database
+    db.execute("""
+        INSERT INTO orders (game_id, user_id, order_type, price, quantity, created_at)
+        VALUES (:game_id, :user_id, :type, :price, :quantity, CURRENT_TIMESTAMP)
+    """, game_id=lobby_id, user_id=user_id, type=order_type, price=order_price, quantity=order_quantity)
+
+    # Emit real-time market update
+    socketio.emit("market_update", {"lobby_id": lobby_id}, room=lobby_id)
+
+    flash(f"Your {order_type} order has been placed.", "success")
+    return redirect(url_for("play", lobby_id=lobby_id))
+
+@app.route("/game/<lobby_id>", methods=["GET"])
+@login_required
+def game(lobby_id):
+    """
+    Render the game page for a specific lobby.
+
+    Args:
+        lobby_id (str): The ID of the lobby for which the game is displayed.
+    """
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for("play"))
+
+    # Get market data
+    asks = db.execute("""
+        SELECT price, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'ask'
+        ORDER BY price ASC, created_at ASC
+    """, game_id=lobby_id)
+
+    bids = db.execute("""
+        SELECT price, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'bid'
+        ORDER BY price DESC, created_at ASC
+    """, game_id=lobby_id)
+
+    # Get trade history
+    trade_history = db.execute("""
+        SELECT price, quantity, created_at FROM transactions
+        WHERE game_id = :game_id
+        ORDER BY created_at DESC
+        LIMIT 10
+    """, game_id=lobby_id)
+
+    # Prepare data for rendering
+    context = {
+        "lobby": lobby,
+        "asks": asks,
+        "bids": bids,
+        "trade_history": trade_history,
+    }
+
+    return render_template("game.html", **context)
+
 
 # Lobby / Game Cleanup Functions
 def cleanup_lobby(lobby_id):
@@ -564,20 +711,25 @@ def cleanup_lobby(lobby_id):
         del markets[lobby_id]
 
 
-def cleanup_game_data(game_id):
+def cleanup_game_data(game_id, lobby):
     """
     Perform database cleanup after a game ends.
 
     Args:
         game_id (int): The ID of the game to clean up.
+        lobby (dict): The lobby object containing information about the game's state.
     """
-    # Finalize game results
-    finalize_game_results(game_id)
+    # Check the lobby status
+    if lobby["status"] == "waiting":
+        print(f"Skipping finalizing game results for game ID {game_id}. Game was never started.")
+    else:
+        # Finalize game results only if the game was started
+        finalize_game_results(game_id, lobby)
 
-    # Mark game as completed
+    # Mark game as completed in the database
     mark_game_as_completed(game_id)
 
-    # Delete old orders and transactions
+    # Delete old orders and transactions from the database
     db.execute("""
         DELETE FROM orders WHERE game_id = :game_id
     """, game_id=game_id)
@@ -587,6 +739,7 @@ def cleanup_game_data(game_id):
     """, game_id=game_id)
 
 
+
 def cleanup_all(lobby_id):
     """
     Perform a full cleanup for a given lobby, including both memory and database data.
@@ -594,14 +747,28 @@ def cleanup_all(lobby_id):
     Args:
         lobby_id (str): The ID of the lobby to clean up.
     """
+    try:
+        # Find the lobby in the global `lobbies` list
+        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        if not lobby:
+            print(f"No lobby found with ID {lobby_id}. Skipping cleanup.")
+            return
 
-    # Perform database cleanup
-    cleanup_game_data(lobby_id)
+        print(f"Starting full cleanup for lobby ID: {lobby_id}")
 
-    # Perform memory cleanup
-    cleanup_lobby(lobby_id)
+        # Perform memory cleanup
+        cleanup_lobby(lobby_id)
 
-    
+        # Perform database cleanup
+        cleanup_game_data(lobby_id, lobby)
+
+        print(f"Full cleanup for lobby ID {lobby_id} completed successfully.")
+
+    except Exception as e:
+        print(f"Error during full cleanup for lobby ID {lobby_id}: {e}")
+        raise
+
+
 @app.route("/leave_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def leave_lobby(lobby_id):
@@ -623,13 +790,42 @@ def leave_lobby(lobby_id):
     lobby["players"] = [player for player in lobby["players"] if player["name"] != player_name]
     lobby["current_players"] = len(lobby["players"])
 
+    # Notify the lobby of the updated players list
+    socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
+
     # Check if the lobby is now empty
     if lobby["current_players"] == 0:
         # Automatically clean up the lobby
         end_game(lobby_id)  # Call the end_game function directly
+    # Check if the lobby now only contains bots
+    elif all(player.get("is_bot", False) for player in lobby["players"]):
+        print(f"Lobby {lobby['id']} has only bots. Ending game.")
+        cleanup_all(lobby["id"])
 
     flash("You have left the lobby", "success")
     return redirect(url_for("play"))
+
+@socketio.on("leave_room_event")
+def leave_room_event(data):
+    """
+    Handle a user leaving a Socket.IO room for real-time updates.
+
+    Args:
+        data (dict): Contains `lobby_id` and the player's `username`.
+    """
+    lobby_id = data.get("lobby_id")
+    username = session.get("username")
+
+    # Check if the user is logged in and the lobby exists
+    if not username or not lobby_id:
+        return {"status": "error", "message": "Invalid lobby or user"}, 400
+
+    # Leave the Socket.IO room
+    leave_room(lobby_id)
+    print(f"{username} left room {lobby_id}")
+
+    # Notify others in the room
+    socketio.emit("player_left", {"player": username}, to=lobby_id)
 
 @app.route("/start_game/<lobby_id>", methods=["POST"])
 @login_required
@@ -664,7 +860,11 @@ def start_game(lobby_id):
     socketio.emit("game_start", lobby_id)
 
     flash("Game has started", "success")
-    return render_template("game.html", lobby=lobby)
+    try:
+         return redirect(url_for("game", lobby_id=lobby_id))
+    except Exception as e:
+        print(f"Error in start_game: {e}")
+        return redirect(url_for("play"))
 
 @app.route("/end_game/<lobby_id>", methods=["POST"])
 @login_required
@@ -676,12 +876,55 @@ def end_game(lobby_id):
         lobby_id (str): The ID of the lobby to clean up.
     """
     try:
-        cleanup_all(lobby_id)  # Perform memory and database cleanup
+        # Find the lobby
+        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        if not lobby:
+            flash("Lobby not found. Unable to end the game.", "danger")
+            return redirect(url_for("play"))
+
+        # If the game is in progress, generate the leaderboard
+        if lobby["status"] == "in_progress":
+            # Fetch P&L leaderboard from transactions
+            leaderboard = db.execute("""
+                SELECT
+                    t.buyer_id AS user_id,
+                    SUM(:fair_value - t.price) AS pnl,
+                    COUNT(t.id) AS trade_count,
+                    ROUND(SUM(CASE WHEN :fair_value > t.price THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id), 2) AS accuracy
+                FROM transactions t
+                WHERE t.game_id = :game_id
+                GROUP BY t.buyer_id
+                ORDER BY pnl DESC
+            """, game_id=lobby_id, fair_value=markets[lobby_id][lobby["market_question"]])
+
+            # Convert leaderboard to a list of dictionaries
+            leaderboard_data = [
+                {
+                    "user_id": entry["user_id"],
+                    "pnl": round(entry["pnl"], 2),
+                    "trade_count": entry["trade_count"],
+                    "accuracy": entry["accuracy"],
+                }
+                for entry in leaderboard
+            ]
+
+            # Notify all players in the lobby about the leaderboard
+            socketio.emit("game_end_leaderboard", {"leaderboard": leaderboard_data}, room=lobby_id)
+
+        # Notify all players in the lobby about the game ending
+        socketio.emit("lobby_ended", {"lobby_id": lobby_id}, room=lobby_id)
+
+        # Perform memory and database cleanup
+        cleanup_all(lobby_id)
+
         flash("Game has been ended and data cleaned up", "success")
+
     except Exception as e:
         flash("An error occurred while ending the game. Please try again.", "danger")
-        print(e)
-    return redirect(url_for('game'))
+        print(f"Error in end_game: {e}")
+
+    return redirect(url_for("play"))
+
 
 # Bot Helper Functions and Routes
 def get_current_market_state(lobby_id):
@@ -691,26 +934,26 @@ def get_current_market_state(lobby_id):
     # Best bid and ask
     best_bid = db.execute("""
         SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND type = 'bid'
+        WHERE game_id = :game_id AND order_type = 'bid'
         ORDER BY price DESC, created_at ASC LIMIT 1
     """, game_id=lobby_id)
 
     best_ask = db.execute("""
         SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND type = 'ask'
+        WHERE game_id = :game_id AND order_type = 'ask'
         ORDER BY price ASC, created_at ASC LIMIT 1
     """, game_id=lobby_id)
 
     # Full market depth
     all_bids = db.execute("""
         SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND type = 'bid'
+        WHERE game_id = :game_id AND order_type = 'bid'
         ORDER BY price DESC, created_at ASC
     """, game_id=lobby_id)
 
     all_asks = db.execute("""
         SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND type = 'ask'
+        WHERE game_id = :game_id AND order_type = 'ask'
         ORDER BY price ASC, created_at ASC
     """, game_id=lobby_id)
 
@@ -732,6 +975,9 @@ def get_current_market_state(lobby_id):
 @app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def add_bot_to_lobby(lobby_id):
+    """
+    Add a bot to a lobby, ensuring proper handling of player counts and status.
+    """
     bot_name = request.form.get("bot_name", "DefaultBot")
     bot_level = request.form.get("bot_level", "medium")
     bot_name = f"{bot_name} ({bot_level})"
@@ -743,18 +989,18 @@ def add_bot_to_lobby(lobby_id):
         return redirect(url_for("play"))
 
     # Check if the lobby is full
-    if len(lobby["players"]) >= int(lobby["max_players"]):
-        flash("Lobby is full. Cannot add more players or bots.", "danger")
+    if is_lobby_full(lobby):
+        flash("Cannot add bot: Lobby is full", "warning")
         return redirect(url_for("join_lobby", lobby_id=lobby_id))
 
     # Add bot to the lobby
     bot_id = str(uuid.uuid4())
     bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
-    lobby["players"].append({"name": bot_name, "ready": True})  # Mark bot as ready
-    # lobby["current_players"] += 1
+    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now()})  # Mark bot as ready
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
 
 
 @app.route("/bot_action/<lobby_id>", methods=["POST"])
@@ -803,3 +1049,76 @@ def start_bot_trading(lobby_id):
 
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
+
+
+
+
+
+
+# Handling Inactive Users in a Lobby (Ones that leave, etc.). If you can get this to work that would be cool, but rn idk how to make it work.
+'''
+def remove_inactive_users():
+    """
+    Periodically remove inactive users from all lobbies and clean up empty or bot-only lobbies.
+    """
+    # Update global lobbies list with active lobbies
+    global lobbies
+    lobbies = active_lobbies
+
+    now = datetime.now()
+    timeout = timedelta(seconds=30)  # Timeout duration for inactivity
+    active_lobbies = []
+
+    for lobby in lobbies:
+        active_players = []
+        for player in lobby["players"]:
+            # Check if the player is a human and inactive
+            if not player["is_bot"] and "last_active" in player and now - player["last_active"] > timeout:
+                print(f"Removing inactive user: {player['name']} from lobby {lobby['id']}")
+            else:
+                # Keep the player (either active or a bot)
+                active_players.append(player)
+
+        # Update the lobby's player list
+        lobby["players"] = active_players
+
+        # Check if there are still humans in the lobby
+        has_human_players = any(not player["is_bot"] for player in lobby["players"])
+
+        # If the lobby contains only bots, initiate cleanup
+        if has_human_players:
+            active_lobbies.append(lobby)
+        else:
+            print(f"Cleaning up lobby with only bots: {lobby['id']}")
+            cleanup_all(lobby["id"])
+
+    
+@app.route("/heartbeat/<lobby_id>", methods=["POST"])
+@login_required
+def heartbeat(lobby_id):
+    """
+    Handle heartbeat requests from the client to confirm their presence in the lobby.
+    """
+    username = session.get("username")
+    if not username:
+        return {"status": "error", "message": "User not logged in"}, 401
+
+    # Update user's last active timestamp in the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        return {"status": "error", "message": "Lobby not found"}, 404
+
+    # Find the user in the lobby and update their last active time
+    for player in lobby["players"]:
+        if player["name"] == username:
+            player["last_active"] = datetime.now()
+
+    # Perform cleanup for inactive users
+    remove_inactive_users()
+
+    return {"status": "success", "message": "Heartbeat received"}, 200
+
+
+
+
+'''
