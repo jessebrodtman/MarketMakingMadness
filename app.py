@@ -465,32 +465,30 @@ def get_current_market_state(lobby_id):
     }
 
 @app.route("/bot_action/<lobby_id>", methods=["POST"])
+@app.route("/bot_action/<lobby_id>", methods=["POST"])
 def bot_action(lobby_id):
-    """
-    Handle bot actions in the market.
-    """
     bots = get_bots_in_lobby(lobby_id)
 
     for bot in bots:
         market_state = get_current_market_state(lobby_id)
         bot.update_market_state(market_state)
 
-        # Generate new bid/ask
-        bid, ask = bot.generate_bid_ask()
-        db.execute("""
-            INSERT INTO orders (game_id, user_id, price, quantity, type, created_at)
-            VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
-        """, game_id=lobby_id, user_id=bot.bot_id, price=bid, quantity=random.randint(1, 10), type="bid")
+        # Decide whether to post new bid/ask prices
+        if bot.should_update_quotes():  # New method in the Bot class
+            bid, ask = bot.generate_bid_ask()
+            db.execute("""
+                INSERT INTO market_bids_asks (game_id, user_id, price, quantity, type, created_at)
+                VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
+            """, game_id=lobby_id, user_id=bot.bot_id, price=bid, quantity=random.randint(1, 10), type="bid")
 
-        db.execute("""
-            INSERT INTO orders (game_id, user_id, price, quantity, type, created_at)
-            VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
-        """, game_id=lobby_id, user_id=bot.bot_id, price=ask, quantity=random.randint(1, 10), type="ask")
+            db.execute("""
+                INSERT INTO market_bids_asks (game_id, user_id, price, quantity, type, created_at)
+                VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
+            """, game_id=lobby_id, user_id=bot.bot_id, price=ask, quantity=random.randint(1, 10), type="ask")
 
         # Decide to trade
         trade = bot.decide_to_trade()
         if trade:
-            execute_trade(lobby_id, bot.bot_id, trade["type"], trade["price"])
+            execute_trade(bot.bot_id, trade["type"], trade["price"])
 
-    return {"status": "success"}
 

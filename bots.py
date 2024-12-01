@@ -133,6 +133,34 @@ class Bot:
             return 0.3
         else:
             return 0.6  # High activity, higher trade frequency
+    
+    def should_update_quotes(self):
+        """
+        Decide whether the bot should post new bid/ask prices based on market conditions.
+        
+        Returns:
+            bool: True if the bot should update its quotes, False otherwise.
+        """
+        now = datetime.now()
+        time_since_last_trade = (now - self.last_trade_time).total_seconds()
+
+        # Only update if sufficient time has passed since the last trade
+        if time_since_last_trade < 30:  # Adjust this threshold as needed
+            return False
+
+        # Check if the bot's current quotes are still competitive
+        best_bid = self.market_state.get("best_bid", None)
+        best_ask = self.market_state.get("best_ask", None)
+
+        if self.current_bid and best_bid and self.current_bid >= best_bid["price"]:
+            return False  # Current bid is still competitive
+
+        if self.current_ask and best_ask and self.current_ask <= best_ask["price"]:
+            return False  # Current ask is still competitive
+
+        # Otherwise, allow the bot to update quotes
+        return True
+
 
 
 
