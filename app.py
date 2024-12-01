@@ -301,7 +301,7 @@ def finalize_game_results(game_id):
     """
     # Retrieve the scenario and lobby ID from the `games` table
     game_data = db.execute("""
-        SELECT id, scenario, lobby_id
+        SELECT id, scenario, lobby_name
         FROM games
         WHERE id = :game_id
     """, game_id=game_id)
@@ -310,13 +310,10 @@ def finalize_game_results(game_id):
         raise ValueError(f"Game ID {game_id} does not exist in the database.")
 
     scenario = game_data[0]["scenario"]
-    lobby_id = game_data[0]["lobby_id"]
+    lobby_id = game_data[0]["id"]
+    lobby_name = game_data[0]["lobby_name"]
 
-    # Retrieve the fair value from the `markets` dictionary
-    if lobby_id not in markets or scenario not in markets[lobby_id]:
-        raise ValueError(f"Fair value for lobby ID {lobby_id} and scenario '{scenario}' not found.")
-
-    fair_value = markets[lobby_id][scenario]
+    fair_value = get_fair_value(lobby_id)
 
     # Aggregate performance data for each user based on the fair market value
     db.execute("""
@@ -347,8 +344,6 @@ def mark_game_as_completed(game_id):
         SET status = 'completed'
         WHERE id = :game_id
     """, game_id=game_id)
-
-
 
 @app.route("/create_lobby", methods=["GET", "POST"])
 @login_required
@@ -594,14 +589,14 @@ def cleanup_all(lobby_id):
     Args:
         lobby_id (str): The ID of the lobby to clean up.
     """
-    # Perform memory cleanup
-    cleanup_lobby(lobby_id)
 
     # Perform database cleanup
     cleanup_game_data(lobby_id)
 
+    # Perform memory cleanup
+    cleanup_lobby(lobby_id)
 
-
+    
 @app.route("/leave_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def leave_lobby(lobby_id):
@@ -646,11 +641,8 @@ def end_game(lobby_id):
         flash("Game has been ended and data cleaned up", "success")
     except Exception as e:
         flash("An error occurred while ending the game. Please try again.", "danger")
+        print(e)
     return redirect(url_for('game'))
-
-
-
-
 
 
 
