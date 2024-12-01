@@ -6,6 +6,10 @@ import uuid
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
+from markets import get_random_market, get_market_answer, get_all_markets, add_market
+from bots import create_bot, remove_bot, get_bots_in_lobby
+import random
+
 
 # Configure application
 app = Flask(__name__)
@@ -348,3 +352,145 @@ def mark_ready(lobby_id):
 if __name__ == "__main__":
     app.run(debug=True)
     socketio.run(app)
+
+
+
+
+# Execute Trade Helper Funciton
+def execute_trade(game_id, user_id, trade_type, trade_price):
+    """
+    Execute a trade for a given user (bot or human).
+
+    Args:
+        game_id (int): The ID of the game/lobby.
+        user_id (str): The unique ID of the user (bot or human).
+        trade_type (str): "buy" or "sell".
+        trade_price (float): The price at which the trade is executed.
+    """
+    if trade_type == "buy":
+        # Match with the best ask
+        best_ask = db.execute("""
+            SELECT id, user_id, price, quantity FROM orders
+            WHERE game_id = :game_id AND type = 'ask' AND price = :trade_price
+            ORDER BY created_at ASC LIMIT 1
+        """, game_id=game_id, trade_price=trade_price)
+
+        if best_ask:
+            ask = best_ask[0]
+            quantity_to_trade = min(ask["quantity"], random.randint(1, 10))
+
+            # Record the transaction
+            db.execute("""
+                INSERT INTO transactions (game_id, buyer_id, seller_id, price, quantity, created_at)
+                VALUES (:game_id, :buyer_id, :seller_id, :price, :quantity, CURRENT_TIMESTAMP)
+            """, game_id=game_id, buyer_id=user_id, seller_id=ask["user_id"], price=trade_price, quantity=quantity_to_trade)
+
+            # Update the remaining quantity or delete the order if fulfilled
+            if ask["quantity"] > quantity_to_trade:
+                db.execute("""
+                    UPDATE orders SET quantity = quantity - :quantity WHERE id = :id
+                """, quantity=quantity_to_trade, id=ask["id"])
+            else:
+                db.execute("DELETE FROM orders WHERE id = :id", id=ask["id"])
+
+    elif trade_type == "sell":
+        # Match with the best bid
+        best_bid = db.execute("""
+            SELECT id, user_id, price, quantity FROM orders
+            WHERE game_id = :game_id AND type = 'bid' AND price = :trade_price
+            ORDER BY created_at DESC LIMIT 1
+        """, game_id=game_id, trade_price=trade_price)
+
+        if best_bid:
+            bid = best_bid[0]
+            quantity_to_trade = min(bid["quantity"], random.randint(1, 10))
+
+            # Record the transaction
+            db.execute("""
+                INSERT INTO transactions (game_id, buyer_id, seller_id, price, quantity, created_at)
+                VALUES (:game_id, :buyer_id, :seller_id, :price, :quantity, CURRENT_TIMESTAMP)
+            """, game_id=game_id, buyer_id=bid["user_id"], seller_id=user_id, price=trade_price, quantity=quantity_to_trade)
+
+            # Update the remaining quantity or delete the order if fulfilled
+            if bid["quantity"] > quantity_to_trade:
+                db.execute("""
+                    UPDATE orders SET quantity = quantity - :quantity WHERE id = :id
+                """, quantity=quantity_to_trade, id=bid["id"])
+            else:
+                db.execute("DELETE FROM orders WHERE id = :id", id=bid["id"])
+
+@app.route("/execute_trade/<lobby_id>", methods=["POST"])
+@login_required
+def player_trade(lobby_id):
+    """
+    Handle a player's trade in the market.
+    """
+    user_id = session["user_id"]
+    trade_type = request.form.get("type")  # "buy" or "sell"
+    trade_price = float(request.form.get("price"))
+
+    # Execute the trade using the generalized function
+    execute_trade(lobby_id, user_id, trade_type, trade_price)
+
+    return redirect(url_for("play", lobby_id=lobby_id))
+
+
+# Bot Helper Functions and Routes
+def get_current_market_state(lobby_id):
+    """
+    Retrieve the current market state for a specific lobby.
+    """
+    best_bid = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND type = 'bid'
+        ORDER BY price DESC, created_at ASC LIMIT 1
+    """, game_id=lobby_id)
+
+    best_ask = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND type = 'ask'
+        ORDER BY price ASC, created_at ASC LIMIT 1
+    """, game_id=lobby_id)
+
+    recent_trades = db.execute("""
+        SELECT buyer_id, seller_id, price, quantity, created_at FROM transactions
+        WHERE game_id = :game_id
+        ORDER BY created_at DESC LIMIT 10
+    """, game_id=lobby_id)
+
+    return {
+        "best_bid": best_bid[0] if best_bid else None,
+        "best_ask": best_ask[0] if best_ask else None,
+        "recent_trades": recent_trades,
+    }
+
+@app.route("/bot_action/<lobby_id>", methods=["POST"])
+def bot_action(lobby_id):
+    """
+    Handle bot actions in the market.
+    """
+    bots = get_bots_in_lobby(lobby_id)
+
+    for bot in bots:
+        market_state = get_current_market_state(lobby_id)
+        bot.update_market_state(market_state)
+
+        # Generate new bid/ask
+        bid, ask = bot.generate_bid_ask()
+        db.execute("""
+            INSERT INTO orders (game_id, user_id, price, quantity, type, created_at)
+            VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
+        """, game_id=lobby_id, user_id=bot.bot_id, price=bid, quantity=random.randint(1, 10), type="bid")
+
+        db.execute("""
+            INSERT INTO orders (game_id, user_id, price, quantity, type, created_at)
+            VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
+        """, game_id=lobby_id, user_id=bot.bot_id, price=ask, quantity=random.randint(1, 10), type="ask")
+
+        # Decide to trade
+        trade = bot.decide_to_trade()
+        if trade:
+            execute_trade(lobby_id, bot.bot_id, trade["type"], trade["price"])
+
+    return {"status": "success"}
+
