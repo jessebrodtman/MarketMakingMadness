@@ -280,6 +280,76 @@ def handle_exception(e):
     """
     return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
 
+# Helper Functions for Databases and Lobbies
+def create_game(lobby_id, scenario, lobby_name):
+    """
+    Create a new game in the `games` table.
+    """
+    db.execute("""
+        INSERT INTO games (id, scenario, lobby_name, status)
+        VALUES (:id, :scenario, :lobby_name, :status)
+    """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting")
+
+
+def finalize_game_results(game_id):
+    """
+    Populate the `game_results` table by aggregating data from the `transactions` table
+    and calculating P&L based on the fair market value.
+
+    Args:
+        game_id (str): The ID of the game to finalize results for.
+    """
+    # Retrieve the scenario and lobby ID from the `games` table
+    game_data = db.execute("""
+        SELECT id, scenario, lobby_id
+        FROM games
+        WHERE id = :game_id
+    """, game_id=game_id)
+
+    if not game_data:
+        raise ValueError(f"Game ID {game_id} does not exist in the database.")
+
+    scenario = game_data[0]["scenario"]
+    lobby_id = game_data[0]["lobby_id"]
+
+    # Retrieve the fair value from the `markets` dictionary
+    if lobby_id not in markets or scenario not in markets[lobby_id]:
+        raise ValueError(f"Fair value for lobby ID {lobby_id} and scenario '{scenario}' not found.")
+
+    fair_value = markets[lobby_id][scenario]
+
+    # Aggregate performance data for each user based on the fair market value
+    db.execute("""
+        INSERT INTO game_results (user_id, game_id, scenario, pnl, trades_completed)
+        SELECT
+            t.buyer_id AS user_id,
+            t.game_id,
+            :scenario AS scenario,
+            SUM(
+                CASE
+                    WHEN t.buyer_id IS NOT NULL THEN :fair_value - t.price  -- Profit for buyers
+                    WHEN t.seller_id IS NOT NULL THEN t.price - :fair_value -- Profit for sellers
+                END
+            ) AS pnl,
+            COUNT(t.id) AS trades_completed
+        FROM transactions t
+        WHERE t.game_id = :game_id
+        GROUP BY t.buyer_id
+    """, game_id=game_id, scenario=scenario, fair_value=fair_value)
+
+
+def mark_game_as_completed(game_id):
+    """
+    Mark the game as completed.
+    """
+    db.execute("""
+        UPDATE games
+        SET status = 'completed'
+        WHERE id = :game_id
+    """, game_id=game_id)
+
+
+
 @app.route("/create_lobby", methods=["GET", "POST"])
 @login_required
 def create_lobby():
@@ -303,6 +373,8 @@ def create_lobby():
         market = get_random_market()
         markets[lobby_id] = market  # Store the market in the global markets dictionary
 
+        # Add to `games` table
+        create_game(lobby_id, market['question'], lobby_name)
         # Create the lobby object
         new_lobby = {
             "id": lobby_id,
@@ -355,7 +427,7 @@ def join_lobby(lobby_id):
     if not any(player["name"] == player_name for player in lobby["players"]):
         lobby["players"].append({"name": player_name, "ready": False})
         lobby["current_players"] += 1
-
+    
     flash("You have joined the lobby", "success")
     return render_template("lobby.html", lobby=lobby)
 
@@ -499,18 +571,11 @@ def cleanup_game_data(game_id):
     Args:
         game_id (int): The ID of the game to clean up.
     """
-    # Mark game as completed
-    db.execute("""
-        UPDATE games SET status = 'completed' WHERE id = :game_id
-    """, game_id=game_id)
+    # Finalize game results
+    finalize_game_results(game_id)
 
-    # Aggregate performance data into game_results
-    db.execute("""
-        INSERT INTO game_results (user_id, game_id, scenario, pnl, accuracy, time_taken)
-        SELECT gp.user_id, gp.game_id, gp.scenario, gp.total_pnl, gp.accuracy, gp.time_taken
-        FROM game_participants gp
-        WHERE gp.game_id = :game_id
-    """, game_id=game_id)
+    # Mark game as completed
+    mark_game_as_completed(game_id)
 
     # Delete old orders and transactions
     db.execute("""
