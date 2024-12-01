@@ -359,7 +359,7 @@ def create_lobby():
         # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
             flash("Max players must be a positive number", "danger")
-            return redirect(url_for("play"))
+            return redirect(url_for("game"))
 
         # Generate a unique lobby ID
         lobby_id = str(uuid.uuid4())
@@ -411,12 +411,12 @@ def join_lobby(lobby_id):
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
-        return redirect(url_for("play"))
+        return redirect(url_for("game"))
 
     # Prevent joining if the lobby is full
     if lobby["current_players"] >= int(lobby["max_players"]):
         flash("Lobby is full", "danger")
-        return redirect(url_for("play"))
+        return redirect(url_for("game"))
 
     # Add the player to the lobby if not already present
     if not any(player["name"] == player_name for player in lobby["players"]):
@@ -536,7 +536,7 @@ def player_trade(lobby_id):
     # Execute the trade using the generalized function
     execute_trade(lobby_id, user_id, trade_type, trade_price)
 
-    return redirect(url_for("play", lobby_id=lobby_id))
+    return redirect(url_for("game", lobby_id=lobby_id))
 
 # Lobby / Game Cleanup Functions
 def cleanup_lobby(lobby_id):
@@ -612,7 +612,7 @@ def leave_lobby(lobby_id):
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
-        return redirect(url_for("play"))
+        return redirect(url_for("game"))
 
     # Remove the player from the lobby
     lobby["players"] = [player for player in lobby["players"] if player["name"] != player_name]
@@ -624,7 +624,7 @@ def leave_lobby(lobby_id):
         end_game(lobby_id)  # Call the end_game function directly
 
     flash("You have left the lobby", "success")
-    return redirect(url_for("play"))
+    return redirect(url_for("game"))
 
 
 @app.route("/end_game/<lobby_id>", methods=["POST"])
@@ -705,7 +705,7 @@ def add_bot_to_lobby(lobby_id):
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
-        return redirect(url_for("play"))
+        return redirect(url_for("game"))
 
     # Check if the lobby is full
     if lobby["current_players"] >= int(lobby["max_players"]):
