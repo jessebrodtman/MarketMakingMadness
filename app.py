@@ -178,12 +178,11 @@ def history():
 
     # Fetch detailed game history
     games = db.execute("""
-        SELECT 
-            date, scenario, pnl, accuracy, time_taken
-        FROM game_results 
+        SELECT date(created_at) AS date, scenario, pnl, accuracy, time_taken
+        FROM game_results
         WHERE user_id = :user_id
-        ORDER BY date DESC
-    """, user_id=user_id)
+        ORDER BY created_at DESC
+""", user_id=user_id)
 
     # Render the history page with all data
     return render_template(
@@ -333,36 +332,33 @@ def create_lobby():
 @app.route("/join_lobby/<lobby_id>", methods=["GET", "POST"])
 @login_required
 def join_lobby(lobby_id):
-    for lobby in lobbies:
-        if lobby['id'] == lobby_id:
-            # Check if the player is already in the lobby
-            player_name = session.get('username')
-            if not player_name:
-                return redirect(url_for('login'))  # Redirect to login if no username is in session
-            
-            if lobby['status'] == 'full':
-                flash("Lobby is full", "warning")
-                return redirect(url_for('play'))
+    """
+    Handle a user joining a lobby.
 
+    Args:
+        lobby_id (str): The ID of the lobby being joined.
+    """
+    player_name = session.get("username")
 
-            if not any(player['name'] == player_name for player in lobby['players']):
-                # Add player to the lobby
-                lobby['players'].append({'name': player_name, 'ready': False})
-                lobby['current_players'] += 1
-            
-            # Update lobby status if it reaches max players
-            if lobby['current_players'] == int(lobby['max_players']):
-                lobby['status'] = 'full'
-            
-            # Emit an update about the lobby state
-            socketio.emit('lobby_update', lobby, to='/', namespace='/')
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for("play"))
 
-            # Render the lobby waiting room page
-            return render_template('lobby.html', lobby=lobby)
+    # Prevent joining if the lobby is full
+    if lobby["current_players"] >= int(lobby["max_players"]):
+        flash("Lobby is full", "danger")
+        return redirect(url_for("play"))
 
-    # If no matching lobby is found, redirect back to lobby selection
-    flash("The requested lobby does not exist", "danger")
-    return redirect(url_for('play'))
+    # Add the player to the lobby if not already present
+    if not any(player["name"] == player_name for player in lobby["players"]):
+        lobby["players"].append({"name": player_name, "ready": False})
+        lobby["current_players"] += 1
+
+    flash("You have joined the lobby", "success")
+    return render_template("lobby.html", lobby=lobby)
+
 
 @app.route("/mark_ready/<lobby_id>", methods=["GET", "POST"])
 @login_required
@@ -495,6 +491,7 @@ def cleanup_lobby(lobby_id):
     if lobby_id in markets:
         del markets[lobby_id]
 
+
 def cleanup_game_data(game_id):
     """
     Perform database cleanup after a game ends.
@@ -509,12 +506,10 @@ def cleanup_game_data(game_id):
 
     # Aggregate performance data into game_results
     db.execute("""
-        INSERT INTO game_results (user_id, game_id, pnl, trades_completed)
-        SELECT gp.user_id, gp.game_id, gp.total_pnl, COUNT(t.id)
+        INSERT INTO game_results (user_id, game_id, scenario, pnl, accuracy, time_taken)
+        SELECT gp.user_id, gp.game_id, gp.scenario, gp.total_pnl, gp.accuracy, gp.time_taken
         FROM game_participants gp
-        LEFT JOIN transactions t ON gp.user_id = t.buyer_id OR gp.user_id = t.seller_id
         WHERE gp.game_id = :game_id
-        GROUP BY gp.user_id
     """, game_id=game_id)
 
     # Delete old orders and transactions
@@ -526,6 +521,52 @@ def cleanup_game_data(game_id):
         DELETE FROM transactions WHERE game_id = :game_id
     """, game_id=game_id)
 
+
+def cleanup_all(lobby_id):
+    """
+    Perform a full cleanup for a given lobby, including both memory and database data.
+
+    Args:
+        lobby_id (str): The ID of the lobby to clean up.
+    """
+    # Perform memory cleanup
+    cleanup_lobby(lobby_id)
+
+    # Perform database cleanup
+    cleanup_game_data(lobby_id)
+
+
+
+@app.route("/leave_lobby/<lobby_id>", methods=["POST"])
+@login_required
+def leave_lobby(lobby_id):
+    """
+    Handle a user leaving a lobby.
+
+    Args:
+        lobby_id (str): The ID of the lobby the user is leaving.
+    """
+    player_name = session.get("username")
+
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for("play"))
+
+    # Remove the player from the lobby
+    lobby["players"] = [player for player in lobby["players"] if player["name"] != player_name]
+    lobby["current_players"] = len(lobby["players"])
+
+    # Check if the lobby is now empty
+    if lobby["current_players"] == 0:
+        # Automatically clean up the lobby
+        end_game(lobby_id)  # Call the end_game function directly
+
+    flash("You have left the lobby", "success")
+    return redirect(url_for("play"))
+
+
 @app.route("/end_game/<lobby_id>", methods=["POST"])
 @login_required
 def end_game(lobby_id):
@@ -535,20 +576,14 @@ def end_game(lobby_id):
     Args:
         lobby_id (str): The ID of the lobby to clean up.
     """
-    # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby['id'] == lobby_id), None)
-    if not lobby:
-        flash("Lobby not found", "danger")
-        return redirect(url_for('play'))
+    try:
+        cleanup_all(lobby_id)  # Perform memory and database cleanup
+        flash("Game has been ended and data cleaned up", "success")
+    except Exception as e:
+        flash("An error occurred while ending the game. Please try again.", "danger")
+    return redirect(url_for('game'))
 
-    # Perform database cleanup
-    cleanup_game_data(lobby_id)
 
-    # Perform memory cleanup
-    cleanup_lobby(lobby_id)
-
-    flash("Game has been ended and data cleaned up", "success")
-    return redirect(url_for('play'))
 
 
 
@@ -675,10 +710,3 @@ def start_bot_trading(lobby_id):
 
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
-
-
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-if __name__ == "__main__":
-    app.run(debug=True)
