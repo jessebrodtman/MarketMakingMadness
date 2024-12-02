@@ -12,6 +12,11 @@
 
 {% block main %}
     <div class="game-container mt-5">
+        <!-- Timer Display -->
+        <div class="game-timer text-center mb-4">
+            <h4>Time Remaining: <span id="timer">{{ lobby.game_length }}</span> seconds</h4>
+        </div>
+
         <!-- Market Question -->
         <div class="game-market-question text-center mb-4">
             <h3 class="game-market-question-title">{{ lobby.market_question }}</h3>
@@ -116,11 +121,6 @@
                         {% for player in lobby.players[:10] %}
                             <li class="game-roster-item list-group-item d-flex justify-content-between align-items-center">
                                 <span>{{ player.name }}</span>
-                                {% if player.ready %}
-                                    <span class="badge bg-success rounded-pill">Ready</span>
-                                {% else %}
-                                    <span class="badge bg-danger rounded-pill">Not Ready</span>
-                                {% endif %}
                             </li>
                         {% endfor %}
                     </ul>
@@ -175,12 +175,30 @@
                 </form>
             </div>
             <div class="col-md-6 text-center">
-                <form action="{{ url_for('end_game', lobby_id=lobby.id) }}" method="POST">
+                <form id="end_game_form" action="{{ url_for('end_game', lobby_id=lobby.id) }}" method="POST">
                     <button type="submit" class="btn btn-danger w-100">End Game</button>
                 </form>
             </div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+    <script>
+        // Timer logic
+        let timeRemaining = "{{ lobby.game_length }}";
+        const timerElement = document.getElementById('timer');
 
+        function updateTimer() {
+            console.log("Time remaining:", timeRemaining);
+            if (timeRemaining > 0) {
+                timerElement.textContent = timeRemaining;
+                timeRemaining--;
+            } else {
+                // Time's up, submit the form to end the game
+                clearInterval(timerInterval);
+                document.getElementById('end_game_form').submit();
+            }
+        }
+
+        const timerInterval = setInterval(updateTimer, 1000);
+    </script>
 {% endblock %}

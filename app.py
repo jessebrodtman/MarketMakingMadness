@@ -304,14 +304,14 @@ def is_lobby_full(lobby):
     """
     return len(lobby["players"]) >= int(lobby["max_players"])
 
-def create_game(lobby_id, scenario, lobby_name):
+def create_game(lobby_id, scenario, lobby_name, game_length):
     """
     Create a new game in the `games` table.
     """
     db.execute("""
-        INSERT INTO games (id, scenario, lobby_name, status)
-        VALUES (:id, :scenario, :lobby_name, :status)
-    """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting")
+        INSERT INTO games (id, scenario, lobby_name, status, game_length)
+        VALUES (:id, :scenario, :lobby_name, :status, :game_length)
+    """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting", game_length=game_length)
 
 
 def finalize_game_results(game_id, lobby):
@@ -383,6 +383,7 @@ def create_lobby():
         # Get lobby details from the form
         lobby_name = request.form.get("lobby_name")
         max_players = request.form.get("max_players")
+        game_length = request.form.get("game_length")
         
         # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
@@ -397,7 +398,7 @@ def create_lobby():
         markets[lobby_id] = market  # Store the market in the global markets dictionary
 
         # Add to `games` table
-        create_game(lobby_id, market["question"], lobby_name)
+        create_game(lobby_id, market["question"], lobby_name, game_length)
 
         # Create the lobby object
         new_lobby = {
@@ -408,10 +409,11 @@ def create_lobby():
             "status": "waiting",
             "players": [],
             "market_question": market["question"],  # Add the market question to the lobby object
+            "game_length": game_length,
         }
         lobbies.append(new_lobby)
 
-        # Notify via SocketIO (if needed)
+        # Notify via SocketIO
         socketio.emit("lobby_update", new_lobby)
 
         # Redirect to the lobby page
@@ -448,11 +450,6 @@ def join_lobby(lobby_id):
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
 
-    # Prevent joining if the game has already started
-    if lobby["status"] == "in_progress":
-        flash("Game has already started", "danger")
-        return redirect(url_for("play"))
-
     # Check if the user is already in the lobby
     existing_player = next((p for p in lobby["players"] if p["name"] == player_name), None)
     if existing_player:
@@ -463,6 +460,11 @@ def join_lobby(lobby_id):
         # Prevent joining if the lobby is full
         if len(lobby["players"]) >= int(lobby["max_players"]):
             flash("Lobby is full", "danger")
+            return redirect(url_for("play"))
+        
+        # Prevent joining if the game has already started
+        if lobby["status"] == "in_progress":
+            flash("Game has already started", "danger")
             return redirect(url_for("play"))
 
         # Add the player to the lobby
@@ -513,12 +515,10 @@ def toggle_ready(lobby_id):
             return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=True)
     socketio.run(app)
 
-
-
-# Lobby and Game Logic Helper Funciton
+# Lobby and Game Logic Helper Function
 def get_fair_value(lobby_id):
     """
     Retrieve the fair value of the market for a given lobby.
@@ -755,16 +755,20 @@ def cleanup_all(lobby_id):
             return
 
         print(f"Starting full cleanup for lobby ID: {lobby_id}")
-
-        # Perform memory cleanup
-        cleanup_lobby(lobby_id)
+        print("current lobbies are:", lobbies)
 
         # Perform database cleanup
         cleanup_game_data(lobby_id, lobby)
+        print("cleaned database successfully")
+
+        # Perform memory cleanup
+        cleanup_lobby(lobby_id)
+        print("cleaned memory successfully")
 
         print(f"Full cleanup for lobby ID {lobby_id} completed successfully.")
 
     except Exception as e:
+        print("current lobbies are:", lobbies)
         print(f"Error during full cleanup for lobby ID {lobby_id}: {e}")
         raise
 
@@ -877,6 +881,7 @@ def end_game(lobby_id):
     """
     try:
         # Find the lobby
+        print("finding lobby to end")
         lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
             flash("Lobby not found. Unable to end the game.", "danger")
@@ -884,20 +889,27 @@ def end_game(lobby_id):
 
         # If the game is in progress, generate the leaderboard
         if lobby["status"] == "in_progress":
+            print("generating leaderboard")
+            print(markets)
+            print("test with lobby id:", lobby_id, "fair_value:", markets[lobby_id]["fair_value"])
             # Fetch P&L leaderboard from transactions
             leaderboard = db.execute("""
                 SELECT
                     t.buyer_id AS user_id,
                     SUM(:fair_value - t.price) AS pnl,
                     COUNT(t.id) AS trade_count,
-                    ROUND(SUM(CASE WHEN :fair_value > t.price THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id), 2) AS accuracy
+                    ROUND(CASE WHEN COUNT(t.id) > 0
+                        THEN SUM(CASE WHEN :fair_value > t.price THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id)
+                        ELSE 0
+                    END, 2) AS accuracy
                 FROM transactions t
                 WHERE t.game_id = :game_id
                 GROUP BY t.buyer_id
                 ORDER BY pnl DESC
-            """, game_id=lobby_id, fair_value=markets[lobby_id][lobby["market_question"]])
+            """, game_id=lobby_id, fair_value=markets[lobby_id]["fair_value"])
 
             # Convert leaderboard to a list of dictionaries
+            print("converting leaderboard")
             leaderboard_data = [
                 {
                     "user_id": entry["user_id"],
@@ -909,10 +921,14 @@ def end_game(lobby_id):
             ]
 
             # Notify all players in the lobby about the leaderboard
+            print("send out leaderboard")
             socketio.emit("game_end_leaderboard", {"leaderboard": leaderboard_data}, room=lobby_id)
 
         # Notify all players in the lobby about the game ending
+        print("send out game end")
         socketio.emit("lobby_ended", {"lobby_id": lobby_id}, room=lobby_id)
+
+        print("error before memory cleanup")
 
         # Perform memory and database cleanup
         cleanup_all(lobby_id)
