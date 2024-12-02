@@ -143,6 +143,8 @@
                                 <th class="text-center">Price</th>
                                 <th class="text-center">Quantity</th>
                                 <th class="text-center">Time</th>
+                                <th class="text-center">Buyer</th>
+                                <th class="text-center">Seller</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -151,6 +153,8 @@
                                     <td class="text-center">{{ trade.price }}</td>
                                     <td class="text-center">{{ trade.quantity }}</td>
                                     <td class="text-center">{{ trade.created_at }}</td>
+                                    <td class="text-center">{{ trade.buyer }}</td>
+                                    <td class="text-center">{{ trade.seller }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

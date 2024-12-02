@@ -673,9 +673,17 @@ def game(lobby_id):
 
     # Get trade history
     trade_history = db.execute("""
-        SELECT price, quantity, created_at FROM transactions
-        WHERE game_id = :game_id
-        ORDER BY created_at DESC
+        SELECT 
+            t.price, 
+            t.quantity, 
+            t.created_at,
+            buyer.username AS buyer,
+            seller.username AS seller
+        FROM transactions t
+        LEFT JOIN users buyer ON t.buyer_id = buyer.id
+        LEFT JOIN users seller ON t.seller_id = seller.id
+        WHERE t.game_id = :game_id
+        ORDER BY t.created_at DESC
         LIMIT 10
     """, game_id=lobby_id)
 
