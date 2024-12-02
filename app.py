@@ -618,7 +618,7 @@ def player_trade(lobby_id):
     # Emit real-time player action update
     socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id, "action": trade_type, "price": trade_price}, room=lobby_id)
 
-    return redirect(url_for("play", lobby_id=lobby_id))
+    return redirect(url_for("game", lobby_id=lobby_id))
 
 @app.route("/set_order/<lobby_id>", methods=["POST"])
 @login_required
@@ -641,7 +641,7 @@ def set_order(lobby_id):
     socketio.emit("market_update", {"lobby_id": lobby_id}, room=lobby_id)
 
     flash(f"Your {order_type} order has been placed.", "success")
-    return redirect(url_for("play", lobby_id=lobby_id))
+    return redirect(url_for("game", lobby_id=lobby_id))
 
 @app.route("/game/<lobby_id>", methods=["GET"])
 @login_required
