@@ -188,6 +188,7 @@
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
     <script>
         // Timer logic
+        /*
         let timeRemaining = "{{ lobby.game_length }}";
         const timerElement = document.getElementById('timer');
 
@@ -196,6 +197,7 @@
             if (timeRemaining > 0) {
                 timerElement.textContent = timeRemaining;
                 timeRemaining--;
+                "{{ lobby.game_length }}" = timeRemaining;
             } else {
                 // Time's up, submit the form to end the game
                 clearInterval(timerInterval);
@@ -203,6 +205,6 @@
             }
         }
 
-        const timerInterval = setInterval(updateTimer, 1000);
+        const timerInterval = setInterval(updateTimer, 1000);*/
     </script>
 {% endblock %}
