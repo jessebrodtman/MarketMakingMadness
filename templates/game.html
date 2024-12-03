@@ -36,6 +36,7 @@
                                 <tr>
                                     <th class="text-center">Quantity</th>
                                     <th class="text-center">Price</th>
+                                    <th class="text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -43,6 +44,14 @@
                                     <tr>
                                         <td class="text-center">{{ ask.quantity }}</td>
                                         <td class="text-center text-danger">{{ ask.price }}</td>
+                                        <td class="text-center">
+                                            <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST">
+                                                <input type="hidden" name="type" value="buy">
+                                                <input type="hidden" name="price" value="{{ ask.price }}">
+                                                <input type="hidden" name="quantity" value="{{ ask.quantity }}">
+                                                <button type="submit" class="btn btn-success btn-sm">Buy</button>
+                                            </form>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -57,6 +66,7 @@
                                 <tr>
                                     <th class="text-center">Price</th>
                                     <th class="text-center">Quantity</th>
+                                    <th class="text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -64,6 +74,14 @@
                                     <tr>
                                         <td class="text-center text-success">{{ bid.price }}</td>
                                         <td class="text-center">{{ bid.quantity }}</td>
+                                        <td class="text-center">
+                                            <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST">
+                                                <input type="hidden" name="type" value="sell">
+                                                <input type="hidden" name="price" value="{{ bid.price }}">
+                                                <input type="hidden" name="quantity" value="{{ bid.quantity }}">
+                                                <button type="submit" class="btn btn-success btn-sm">Sell</button>
+                                            </form>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
