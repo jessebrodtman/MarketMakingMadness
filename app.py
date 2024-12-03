@@ -534,7 +534,7 @@ def get_fair_value(lobby_id):
         return market['fair_value']
     raise ValueError(f"No market found for lobby {lobby_id}")  # Error if lobby has no market
 
-def execute_trade(game_id, user_id, trade_type, trade_price):
+def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
     """
     Execute a trade for a given user (bot or human) and update the market in real-time.
 
@@ -543,6 +543,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
         user_id (str): The unique ID of the user (bot or human).
         trade_type (str): "buy" or "sell".
         trade_price (float): The price at which the trade is executed.
+        trade_quantity (float): The quantity of the trade.
     """
     if trade_type == "buy":
         # Match with the best ask
@@ -554,7 +555,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
 
         if best_ask:
             ask = best_ask[0]
-            quantity_to_trade = min(ask["quantity"], random.randint(1, 10))
+            quantity_to_trade = min(ask["quantity"], trade_quantity)
 
             # Record the transaction
             db.execute("""
@@ -583,7 +584,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price):
 
         if best_bid:
             bid = best_bid[0]
-            quantity_to_trade = min(bid["quantity"], random.randint(1, 10))
+            quantity_to_trade = min(bid["quantity"], trade_quantity)
 
             # Record the transaction
             db.execute("""
@@ -611,12 +612,13 @@ def player_trade(lobby_id):
     user_id = session["user_id"]
     trade_type = request.form.get("type")  # "buy" or "sell"
     trade_price = float(request.form.get("price"))
+    trade_quantity = float(request.form.get("quantity"))
 
     # Execute the trade using the generalized function
-    execute_trade(lobby_id, user_id, trade_type, trade_price)
+    execute_trade(lobby_id, user_id, trade_type, trade_price, trade_quantity)
 
     # Emit real-time player action update
-    socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id, "action": trade_type, "price": trade_price}, room=lobby_id)
+    socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id, "action": trade_type, "price": trade_price, "quantity": trade_quantity}, room=lobby_id)
 
     return redirect(url_for("game", lobby_id=lobby_id))
 

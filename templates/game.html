@@ -87,6 +87,10 @@
                         <label for="trade_price" class="game-form-label form-label">Price</label>
                         <input type="number" id="trade_price" name="price" class="game-form-input form-control" step="0.01" placeholder="Enter price" required>
                     </div>
+                    <div class="mb-3">
+                        <label for="trade_quantity" class="game-form-label form-label">Quantity</label>
+                        <input type="number" id="trade_quantity" name="quantity" class="game-form-input form-control" step="0.01" placeholder="Enter quantity" required>
+                    </div>
                     <button type="submit" class="game-btn btn btn-primary w-100">Submit Trade</button>
                 </form>
                 <form action="{{ url_for('set_order', lobby_id=lobby.id) }}" method="POST" class="game-player-action-form">
