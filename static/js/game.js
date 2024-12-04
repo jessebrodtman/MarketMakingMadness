@@ -7,14 +7,40 @@ const username = "{{ session.get('username') }}";
 
 // Emit join_room_event when the page loads
 socket.emit("join_room_event", { lobby_id: lobbyId, username });
+console.log(`Client is attempting to join room with lobby_id: ${lobbyId}`);
 
 // Emit leave_room_event when the page unloads
 window.addEventListener("beforeunload", () => {
     socket.emit("leave_room_event", { lobby_id: lobbyId, username });
 });
 
+socket.on('connect', () => {
+    console.log("SocketIO Connected");
+});
+
+socket.on('disconnect', () => {
+    console.log("SocketIO Disconnected");
+});
+
+// Listen for timer updates
+socket.on('timer_update', (data) => {
+    document.getElementById('timer').innerText = `${data.game_length}`;
+    console.log(`Time Remaining: ${data.game_length} second`);
+});
+
+// Listen for when the timer ends
+socket.on('timer_ended', (data) => {
+    console.log('Timer Ended');
+    document.getElementById('timer').innerText = data.message;
+
+    // Redirect the user after 60 seconds
+    setTimeout(() => {
+        window.location.href = data.redirect_url;
+    }, 60000);
+});
+
 // Listen for market updates (bids and asks)
-socket.on("update_market", (data) => {
+socket.on("market_update", (data) => {
     const bids = data.bids;
     const asks = data.asks;
 
@@ -137,3 +163,5 @@ function displayLeaderboard(leaderboard) {
     const leaderboardModal = new bootstrap.Modal(document.getElementById("leaderboardModal"));
     leaderboardModal.show();
 }
+
+

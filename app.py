@@ -10,11 +10,16 @@ from markets import get_random_market, get_market_answer, get_all_markets, add_m
 from bots import Bot, BOTS, create_bot, remove_bot, get_bots_in_lobby
 import random
 from datetime import datetime, timedelta
+import time, threading
+import logging
 
 # Configure application
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio = SocketIO(app)
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Lobby storage
 lobbies = []
@@ -205,6 +210,37 @@ def history():
         games=games
     )
 
+def countdown_timer(lobby_id, redirect_url):
+    """
+    Background function that handles the countdown timer for the lobby.
+    """
+    while True:
+        print("starting timer")
+        # Find the lobby
+        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        if not lobby:
+            print("breaking out of timer")
+            break
+
+        # Countdown logic
+        if lobby["game_length"] > 0:
+            print("decreasing timer")
+            time.sleep(1)  # Wait for 1 second
+            lobby["game_length"] -= 1
+            # Emit timer update to all clients in the lobby
+            print("emitting timer update")
+            socketio.emit('timer_update', {'game_length': lobby["game_length"]}, room=lobby_id)
+            print("emitted timer update")
+        else:
+            # Timer reaches zero
+            print("ending timer")
+            socketio.emit('timer_ended', {'message': 'Time is up! Game over!', 'redirect_url': redirect_url}, room=lobby_id)
+            print("emitted timer ended")
+
+            # End the game
+            end_game_helper(lobby_id)
+            break
+        print(f"time remaining: {lobby['game_length']}")
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
@@ -331,7 +367,7 @@ def finalize_game_results(game_id, lobby):
 
     # Aggregate performance data for each user based on the fair market value
     db.execute("""
-        INSERT INTO game_results (user_id, game_id, scenario, pnl, trades_completed)
+        INSERT INTO game_results (user_id, game_id, scenario, pnl, accuracy, time_taken, created_at)
         SELECT
             t.buyer_id AS user_id,
             t.game_id,
@@ -342,7 +378,7 @@ def finalize_game_results(game_id, lobby):
                     WHEN t.seller_id IS NOT NULL THEN t.price - :fair_value -- Profit for sellers
                 END
             ) AS pnl,
-            COUNT(t.id) AS trades_completed
+            TODO.  
         FROM transactions t
         WHERE t.game_id = :game_id
         GROUP BY t.buyer_id
@@ -383,7 +419,7 @@ def create_lobby():
         # Get lobby details from the form
         lobby_name = request.form.get("lobby_name")
         max_players = request.form.get("max_players")
-        game_length = request.form.get("game_length")
+        game_length = int(request.form.get("game_length"))
         
         # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
@@ -499,7 +535,6 @@ def join_room_event(data):
 
     # Notify others in the room
     socketio.emit("player_joined", {"player": username}, to=lobby_id)
-
 
 
 @app.route("/toggle_ready/<lobby_id>", methods=["GET", "POST"])
@@ -865,6 +900,8 @@ def start_game(lobby_id):
     Args:
         lobby_id (str): The ID of the lobby to start the game for.
     """
+    logging.debug(f"starting game for lobby {lobby_id}")
+
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
@@ -888,6 +925,14 @@ def start_game(lobby_id):
     # Notify players via SocketIO
     socketio.emit("game_start", lobby_id)
 
+    logging.debug(f"starting timer for lobby {lobby_id}")
+    # Start the timer in a new thread
+    print(f"Starting timer for lobby {lobby_id}")
+    redirect_url = url_for("play")
+    timer_thread = threading.Thread(target=countdown_timer, args=(lobby_id, redirect_url))
+    timer_thread.start()
+    logging.debug(f"timer started for lobby {lobby_id}")
+
     flash("Game has started", "success")
     try:
          return redirect(url_for("game", lobby_id=lobby_id))
@@ -895,11 +940,10 @@ def start_game(lobby_id):
         print(f"Error in start_game: {e}")
         return redirect(url_for("play"))
 
-@app.route("/end_game/<lobby_id>", methods=["POST"])
-@login_required
-def end_game(lobby_id):
+def end_game_helper(lobby_id):
     """
-    Handle game and lobby cleanup when a game ends.
+    Helper function to handle game and lobby cleanup when a game ends.
+    This function does not use any Flask request-specific objects, so it can be called from a background thread.
 
     Args:
         lobby_id (str): The ID of the lobby to clean up.
@@ -909,14 +953,12 @@ def end_game(lobby_id):
         print("finding lobby to end")
         lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
-            flash("Lobby not found. Unable to end the game.", "danger")
-            return redirect(url_for("play"))
+            print("Lobby not found. Unable to end the game.")
+            return
 
         # If the game is in progress, generate the leaderboard
         if lobby["status"] == "in_progress":
             print("generating leaderboard")
-            print(markets)
-            print("test with lobby id:", lobby_id, "fair_value:", markets[lobby_id]["fair_value"])
             # Fetch P&L leaderboard from transactions
             leaderboard = db.execute("""
                 SELECT
@@ -934,7 +976,6 @@ def end_game(lobby_id):
             """, game_id=lobby_id, fair_value=markets[lobby_id]["fair_value"])
 
             # Convert leaderboard to a list of dictionaries
-            print("converting leaderboard")
             leaderboard_data = [
                 {
                     "user_id": entry["user_id"],
@@ -953,13 +994,27 @@ def end_game(lobby_id):
         print("send out game end")
         socketio.emit("lobby_ended", {"lobby_id": lobby_id}, room=lobby_id)
 
-        print("error before memory cleanup")
-
         # Perform memory and database cleanup
+        print("Performing memory and database cleanup")
         cleanup_all(lobby_id)
 
-        flash("Game has been ended and data cleaned up", "success")
+        print("Game has been ended and data cleaned up successfully")
 
+    except Exception as e:
+        print(f"Error in end_game_helper: {e}")
+
+@app.route("/end_game/<lobby_id>", methods=["POST"])
+@login_required
+def end_game(lobby_id):
+    """
+    Handle game and lobby cleanup when a game ends.
+
+    Args:
+        lobby_id (str): The ID of the lobby to clean up.
+    """
+    try:
+        end_game_helper(lobby_id)
+        flash("Game has been ended and data cleaned up", "success")
     except Exception as e:
         flash("An error occurred while ending the game. Please try again.", "danger")
         print(f"Error in end_game: {e}")
