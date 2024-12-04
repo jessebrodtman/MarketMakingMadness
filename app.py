@@ -573,6 +573,8 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
 
             # Emit real-time trade update
             socketio.emit("market_update", {"lobby_id": game_id}, room=game_id)
+        else:
+            flash("No matching ask found", "danger")
 
     elif trade_type == "sell":
         # Match with the best bid
@@ -602,6 +604,8 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
 
             # Emit real-time trade update
             socketio.emit("market_update", {"lobby_id": game_id}, room=game_id)
+        else:
+            flash("No matching bid found", "danger")
 
 @app.route("/execute_trade/<lobby_id>", methods=["POST"])
 @login_required
