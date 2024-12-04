@@ -137,19 +137,32 @@
         <div class="row">
             <!-- Roster Section -->
             <div class="col-md-6">
-                <h4 class="game-section-title text-center">Player Roster</h4>
-                <div class="game-roster-container">
-                    <ul class="game-roster-list list-group">
-                        {% for player in lobby.players[:10] %}
-                            <li class="game-roster-item list-group-item d-flex justify-content-between align-items-center">
-                                <span>{{ player.name }}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                    <!-- Scrollable if more than 10 players -->
-                    {% if lobby.players|length > 10 %}
+                <h4 class="game-section-title text-center">Your Portfolio</h4>
+                <div class="game-trade--container">
+                    <table class="game-trade-history-table table table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Contracts</th>
+                                <th class="text-center">Cash</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="text-center">{{ user_portfolio.contracts }}</td>
+                                <td class="text-center">
+                                    {% if user_portfolio.cash >= 0 %}
+                                        ${{ user_portfolio.cash }}
+                                    {% else %}
+                                        -${{ user_portfolio.cash|abs }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <!-- Scrollable if more than 10 trades -->
+                    {% if trade_history|length > 10 %}
                         <div class="text-center mt-3">
-                            <button class="game-btn btn btn-secondary btn-sm" onclick="scrollToFullRoster()">View Full Roster</button>
+                            <button class="game-btn btn btn-secondary btn-sm" onclick="scrollToFullTradeHistory()">View Full History</button>
                         </div>
                     {% endif %}
                 </div>

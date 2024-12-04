@@ -689,12 +689,23 @@ def game(lobby_id):
         LIMIT 10
     """, game_id=lobby_id)
 
+    # Make trades a portfolio
+    user_portfolio = {"contracts": 0, "cash": 0}
+    for trade in trade_history:
+        if trade["buyer"] == session["username"]:
+            user_portfolio["contracts"] += trade["quantity"]
+            user_portfolio["cash"] -= trade["price"] * trade["quantity"]
+        elif trade["seller"] == session["username"]:
+            user_portfolio["contracts"] -= trade["quantity"]
+            user_portfolio["cash"] += trade["price"] * trade["quantity"]
+
     # Prepare data for rendering
     context = {
         "lobby": lobby,
         "asks": asks,
         "bids": bids,
         "trade_history": trade_history,
+        "user_portfolio": user_portfolio,
     }
 
     return render_template("game.html", **context)
