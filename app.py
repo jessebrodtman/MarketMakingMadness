@@ -11,6 +11,7 @@ from bots import Bot, BOTS, create_bot, remove_bot, get_bots_in_lobby
 import random
 from datetime import datetime, timedelta
 import time, threading
+from threading import Lock
 import logging
 
 # Configure application
@@ -20,6 +21,9 @@ socketio = SocketIO(app)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
+
+# Configure bot lock
+bot_lock = Lock()
 
 # Lobby storage
 lobbies = []
@@ -50,6 +54,159 @@ def after_request(response):
     response.headers["Expires"] = 0
     response.headers["Pragma"] = "no-cache"
     return response
+
+
+# Bot Helper Functions and Routes
+def get_current_market_state(lobby_id):
+    """
+    Retrieve the current market state for a specific lobby.
+    """
+    # Best bid and ask
+    best_bid = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'bid'
+        ORDER BY price DESC, created_at ASC LIMIT 1
+    """, game_id=lobby_id)
+
+    best_ask = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'ask'
+        ORDER BY price ASC, created_at ASC LIMIT 1
+    """, game_id=lobby_id)
+
+    # Full market depth
+    all_bids = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'bid'
+        ORDER BY price DESC, created_at ASC
+    """, game_id=lobby_id)
+
+    all_asks = db.execute("""
+        SELECT price, user_id, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'ask'
+        ORDER BY price ASC, created_at ASC
+    """, game_id=lobby_id)
+
+    # Recent trades
+    recent_trades = db.execute("""
+        SELECT buyer_id, seller_id, price, quantity, created_at FROM transactions
+        WHERE game_id = :game_id
+        ORDER BY created_at DESC LIMIT 10
+    """, game_id=lobby_id)
+
+    return {
+        "best_bid": best_bid[0] if best_bid else None,
+        "best_ask": best_ask[0] if best_ask else None,
+        "all_bids": all_bids,
+        "all_asks": all_asks,
+        "recent_trades": recent_trades,
+    }
+
+@app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
+@login_required
+def add_bot_to_lobby(lobby_id):
+    """
+    Add a bot to a lobby, ensuring proper handling of player counts and status.
+    """
+    bot_name = request.form.get("bot_name", "DefaultBot")
+    bot_level = request.form.get("bot_level", "medium")
+    bot_name = f"{bot_name} ({bot_level})"
+
+    # Find the lobby
+    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found", "danger")
+        return redirect(url_for("play"))
+
+    # Check if the lobby is full
+    if is_lobby_full(lobby):
+        flash("Cannot add bot: Lobby is full", "warning")
+        return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
+    # Add bot to the lobby
+    bot_id = str(uuid.uuid4())
+    bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
+    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now()})  # Mark bot as ready
+
+    flash(f"Bot '{bot_name}' added to the lobby", "success")
+    return redirect(url_for("join_lobby", lobby_id=lobby_id))
+
+
+
+# @app.route("/bot_action/<lobby_id>", methods=["POST"])
+def bot_action(lobby_id):
+    while True:
+        with bot_lock:
+            print(f"Bot action running for lobby {lobby_id}")
+            # Find the lobby to operate in, stop if needed
+            lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+            if not lobby or lobby["status"] != "in_progress":
+                print(f"Stopping bot action for lobby {lobby_id} (lobby not found or game not in progress)")
+                break
+
+            bots = get_bots_in_lobby(lobby_id)
+
+            for bot in bots:
+                market_state = get_current_market_state(lobby_id)
+                bot.update_market_state(market_state)
+
+                # Decide whether to post new bid/ask prices
+                if bot.should_update_quotes():
+                    bid, ask = bot.generate_bid_ask()
+                    for price, order_type in [(bid, "bid"), (ask, "ask")]:
+                        order_quantity = random.randint(1, 10)
+                        print(f"logging bot trade of lobby id: {lobby_id}, bot id: {bot.bot_id}, price: {price}, order_type: {order_type}, quantity: {random.randint(1, 10)}")
+                        print(f"{type(lobby_id)}, {type(bot.bot_id)}, {type(price)}, {type(random.randint(1, 10))}, {type(order_type)}")
+                        db.execute("""
+                            INSERT INTO orders (game_id, user_id, price, quantity, order_type, created_at)
+                            VALUES (:game_id, :user_id, :price, :quantity, :order_type, CURRENT_TIMESTAMP)
+                        """, game_id=lobby_id, user_id=bot.bot_id, price=price, quantity=order_quantity, order_type=order_type)
+                        
+                        # Emit real-time market update
+                        socketio.emit('market_update', {
+                            'order_type': order_type,
+                            'price': price,
+                            'quantity': order_quantity
+                        }, room=lobby_id)
+                        print(f"New order emitted for bot {bot.bot_id} in lobby {lobby_id}")
+
+                # Decide to trade
+                trade = bot.decide_to_trade()
+                if trade:
+                    execute_trade(lobby_id, bot.bot_id, trade["type"], trade["price"], random.randint(1, 10))
+            
+        time.sleep(5) # Sleep for 5 seconds between bot actions, change if needed
+
+@app.route("/start_bot_trading/<lobby_id>", methods=["POST"])
+@login_required
+def start_bot_trading(lobby_id):
+    """
+    Start automatic trading cycles for all bots in the lobby.
+    """
+    # Find the lobby
+    print("finding lobby for bots")
+    lobby = next((lobby for lobby in lobbies if lobby['id'] == lobby_id), None)
+    if not lobby:
+        flash("Lobby not found. Cannot start trading.", "danger")
+        return redirect(url_for('play'))
+
+    # Retrieve all bots in the lobby
+    print("retreiving bots in lobby")
+    bots_in_lobby = get_bots_in_lobby(lobby_id)
+
+    if not bots_in_lobby:
+        flash("No bots found in the lobby to start trading.", "warning")
+        return redirect(url_for('join_lobby', lobby_id=lobby_id))
+
+    print("starting bot trading cycles")
+    bot_thread = threading.Thread(target=bot_action, args=(lobby_id,)) # Use a separate thread for bot trading
+    bot_thread.daemon = True  # Set as daemon so it stops when the main program stops
+    bot_thread.start() # Start the bot trading thread
+
+    flash("Bot trading cycles started.", "success")
+    return redirect(url_for('join_lobby', lobby_id=lobby_id))
+
+
 
 @app.route("/")
 def index():
@@ -607,7 +764,9 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
                 db.execute("DELETE FROM orders WHERE id = :id", id=ask["id"])
 
             # Emit real-time trade update
-            socketio.emit("market_update", {"lobby_id": game_id}, room=game_id)
+            socketio.emit("market_update", 
+                {'price': ask['price'], 'quantity': quantity_to_trade, 'buyer': user_id, 'seller': ask['user_id'], 'time': datetime.now()
+                }, room=game_id)
         else:
             flash("No matching ask found", "danger")
 
@@ -638,7 +797,9 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
                 db.execute("DELETE FROM orders WHERE id = :id", id=bid["id"])
 
             # Emit real-time trade update
-            socketio.emit("market_update", {"lobby_id": game_id}, room=game_id)
+            socketio.emit("market_update", 
+                {'price': bid['price'], 'quantity': quantity_to_trade, 'buyer': bid["user_id"], 'seller': user_id, 'time': datetime.now()
+                }, room=game_id)
         else:
             flash("No matching bid found", "danger")
 
@@ -673,13 +834,19 @@ def set_order(lobby_id):
     order_quantity = int(request.form.get("quantity"))
 
     # Insert the new order into the database
+    print(f"inserting player trade of {lobby_id}, {user_id}, {order_type}, {order_price}, {order_quantity}")
+    print(f"{type(lobby_id)}, {type(user_id)}, {type(order_type)}, {type(order_price)}, {type(order_quantity)}")
     db.execute("""
         INSERT INTO orders (game_id, user_id, order_type, price, quantity, created_at)
         VALUES (:game_id, :user_id, :type, :price, :quantity, CURRENT_TIMESTAMP)
     """, game_id=lobby_id, user_id=user_id, type=order_type, price=order_price, quantity=order_quantity)
 
     # Emit real-time market update
-    socketio.emit("market_update", {"lobby_id": lobby_id}, room=lobby_id)
+    socketio.emit('market_update', {
+        'order_type': order_type,
+        'price': order_price,
+        'quantity': order_quantity
+    }, room=lobby_id)
 
     flash(f"Your {order_type} order has been placed.", "success")
     return redirect(url_for("game", lobby_id=lobby_id))
@@ -721,8 +888,8 @@ def game(lobby_id):
             buyer.username AS buyer,
             seller.username AS seller
         FROM transactions t
-        LEFT JOIN users buyer ON t.buyer_id = buyer.id
-        LEFT JOIN users seller ON t.seller_id = seller.id
+        LEFT JOIN game_participants buyer ON t.buyer_id = buyer.id
+        LEFT JOIN game_participants seller ON t.seller_id = seller.id
         WHERE t.game_id = :game_id
         ORDER BY t.created_at DESC
         LIMIT 10
@@ -925,13 +1092,16 @@ def start_game(lobby_id):
     # Notify players via SocketIO
     socketio.emit("game_start", lobby_id)
 
-    logging.debug(f"starting timer for lobby {lobby_id}")
     # Start the timer in a new thread
     print(f"Starting timer for lobby {lobby_id}")
     redirect_url = url_for("play")
     timer_thread = threading.Thread(target=countdown_timer, args=(lobby_id, redirect_url))
     timer_thread.start()
     logging.debug(f"timer started for lobby {lobby_id}")
+
+    # Start the bots
+    print(f"starting bots in lobby {lobby_id}")
+    start_bot_trading(lobby_id)
 
     flash("Game has started", "success")
     try:
@@ -1020,136 +1190,6 @@ def end_game(lobby_id):
         print(f"Error in end_game: {e}")
 
     return redirect(url_for("play"))
-
-
-# Bot Helper Functions and Routes
-def get_current_market_state(lobby_id):
-    """
-    Retrieve the current market state for a specific lobby.
-    """
-    # Best bid and ask
-    best_bid = db.execute("""
-        SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND order_type = 'bid'
-        ORDER BY price DESC, created_at ASC LIMIT 1
-    """, game_id=lobby_id)
-
-    best_ask = db.execute("""
-        SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND order_type = 'ask'
-        ORDER BY price ASC, created_at ASC LIMIT 1
-    """, game_id=lobby_id)
-
-    # Full market depth
-    all_bids = db.execute("""
-        SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND order_type = 'bid'
-        ORDER BY price DESC, created_at ASC
-    """, game_id=lobby_id)
-
-    all_asks = db.execute("""
-        SELECT price, user_id, quantity FROM orders
-        WHERE game_id = :game_id AND order_type = 'ask'
-        ORDER BY price ASC, created_at ASC
-    """, game_id=lobby_id)
-
-    # Recent trades
-    recent_trades = db.execute("""
-        SELECT buyer_id, seller_id, price, quantity, created_at FROM transactions
-        WHERE game_id = :game_id
-        ORDER BY created_at DESC LIMIT 10
-    """, game_id=lobby_id)
-
-    return {
-        "best_bid": best_bid[0] if best_bid else None,
-        "best_ask": best_ask[0] if best_ask else None,
-        "all_bids": all_bids,
-        "all_asks": all_asks,
-        "recent_trades": recent_trades,
-    }
-
-@app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
-@login_required
-def add_bot_to_lobby(lobby_id):
-    """
-    Add a bot to a lobby, ensuring proper handling of player counts and status.
-    """
-    bot_name = request.form.get("bot_name", "DefaultBot")
-    bot_level = request.form.get("bot_level", "medium")
-    bot_name = f"{bot_name} ({bot_level})"
-
-    # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
-    if not lobby:
-        flash("Lobby not found", "danger")
-        return redirect(url_for("play"))
-
-    # Check if the lobby is full
-    if is_lobby_full(lobby):
-        flash("Cannot add bot: Lobby is full", "warning")
-        return redirect(url_for("join_lobby", lobby_id=lobby_id))
-
-    # Add bot to the lobby
-    bot_id = str(uuid.uuid4())
-    bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
-    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now()})  # Mark bot as ready
-
-    flash(f"Bot '{bot_name}' added to the lobby", "success")
-    return redirect(url_for("join_lobby", lobby_id=lobby_id))
-
-
-
-@app.route("/bot_action/<lobby_id>", methods=["POST"])
-def bot_action(lobby_id):
-    bots = get_bots_in_lobby(lobby_id)
-
-    for bot in bots:
-        market_state = get_current_market_state(lobby_id)
-        bot.update_market_state(market_state)
-
-        # Decide whether to post new bid/ask prices
-        if bot.should_update_quotes():
-            bid, ask = bot.generate_bid_ask()
-            for price, order_type in [(bid, "bid"), (ask, "ask")]:
-                db.execute("""
-                    INSERT INTO orders (game_id, user_id, price, quantity, type, created_at)
-                    VALUES (:game_id, :user_id, :price, :quantity, :type, CURRENT_TIMESTAMP)
-                """, game_id=lobby_id, user_id=bot.bot_id, price=price, quantity=random.randint(1, 10), type=order_type)
-
-        # Decide to trade
-        trade = bot.decide_to_trade()
-        if trade:
-            execute_trade(bot.bot_id, trade["type"], trade["price"])
-
-@app.route("/start_bot_trading/<lobby_id>", methods=["POST"])
-@login_required
-def start_bot_trading(lobby_id):
-    """
-    Start automatic trading cycles for all bots in the lobby.
-    """
-    # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby['id'] == lobby_id), None)
-    if not lobby:
-        flash("Lobby not found. Cannot start trading.", "danger")
-        return redirect(url_for('play'))
-
-    # Retrieve all bots in the lobby
-    bots_in_lobby = [bot for bot in BOTS if bot.lobby_id == lobby_id]
-
-    if not bots_in_lobby:
-        flash("No bots found in the lobby to start trading.", "warning")
-        return redirect(url_for('join_lobby', lobby_id=lobby_id))
-
-    
-    bot_action(lobby_id)  # Use the existing bot_action function
-
-    flash("Bot trading cycles started.", "success")
-    return redirect(url_for('join_lobby', lobby_id=lobby_id))
-
-
-
-
-
 
 # Handling Inactive Users in a Lobby (Ones that leave, etc.). If you can get this to work that would be cool, but rn idk how to make it work.
 '''

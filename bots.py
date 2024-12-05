@@ -1,6 +1,7 @@
 import random
 from datetime import datetime, timedelta
 BOTS = {}  # Dictionary to track active bots in all lobbies
+DATE_FORM = '%Y-%m-%d %H:%M:%S'
 
 class Bot:
     def __init__(self, bot_id, name, fair_value, lobby_id, level="medium"):
@@ -24,6 +25,13 @@ class Bot:
         self.current_ask = None
         self.last_trade_time = datetime.now()  # Track the last time the bot traded
         self.market_maturity = 0  # Tracks market maturity level (increases over time)
+        self.market_state = {
+            "best_bid": None,
+            "best_ask": None,
+            "all_bids": {},
+            "all_asks": {},
+            "recent_trades": {}
+        }
 
     def update_market_state(self, market_state):
         """
@@ -58,8 +66,9 @@ class Bot:
         weight_on_fair_value = 1 - maturity_factor
 
         # Extract market depth and calculate weighted bid/ask
-        best_bid = self.market_state.get("best_bid", {"price": self.fair_value - noise})["price"]
-        best_ask = self.market_state.get("best_ask", {"price": self.fair_value + noise})["price"]
+        print(self.market_state)
+        best_bid = self.market_state.get("best_bid", {"price": self.fair_value - noise})["price"] if self.market_state["best_bid"] else self.fair_value - noise
+        best_ask = self.market_state.get("best_ask", {"price": self.fair_value + noise})["price"] if self.market_state["best_ask"] else self.fair_value + noise
 
         all_bids = self.market_state.get("all_bids", [])
         all_asks = self.market_state.get("all_asks", [])
@@ -83,7 +92,7 @@ class Bot:
         self.current_bid = max(0, bid_price)
         self.current_ask = max(0, ask_price)
 
-        return self.current_bid, self.current_ask
+        return round(self.current_bid, 2), round(self.current_ask, 2)
 
     def decide_to_trade(self):
         """
@@ -123,7 +132,7 @@ class Bot:
         """
         now = datetime.now()
         recent_trades = [
-            trade for trade in last_trades if now - trade["created_at"] < timedelta(seconds=30)
+            trade for trade in last_trades if now - datetime.strptime(trade["created_at"], DATE_FORMAT) < timedelta(seconds=30)
         ]
         activity_level = len(recent_trades)
 
@@ -158,7 +167,7 @@ class Bot:
         time_since_last_trade = (now - self.last_trade_time).total_seconds()
 
         # Only update if sufficient time has passed since the last trade
-        if time_since_last_trade < 30:  # Adjust this threshold as needed
+        if time_since_last_trade < 10:  # Adjust this threshold as needed
             return False
 
         # Check if the bot's current quotes are still competitive

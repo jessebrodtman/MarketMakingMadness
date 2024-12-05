@@ -39,7 +39,7 @@
                                     <th class="text-center">Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="asks-table">
                                 {% for ask in asks[:10] %}
                                     <tr>
                                         <td class="text-center">{{ ask.quantity }}</td>
@@ -69,7 +69,7 @@
                                     <th class="text-center">Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="bids-table">
                                 {% for bid in bids[:10] %}
                                     <tr>
                                         <td class="text-center text-success">{{ bid.price }}</td>
@@ -148,8 +148,8 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="text-center">{{ user_portfolio.contracts }}</td>
-                                <td class="text-center">
+                                <td class="text-center" id="user-portfolio-contracts">{{ user_portfolio.contracts }}</td>
+                                <td class="text-center" id="user-portfolio-cash">
                                     {% if user_portfolio.cash >= 0 %}
                                         ${{ user_portfolio.cash }}
                                     {% else %}
@@ -182,7 +182,7 @@
                                 <th class="text-center">Seller</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="trades-table">
                             {% for trade in trade_history[:10] %}
                                 <tr>
                                     <td class="text-center">{{ trade.price }}</td>
@@ -266,49 +266,86 @@
 
         // Listen for market updates (bids and asks)
         socket.on("market_update", (data) => {
-            const bids = data.bids;
-            const asks = data.asks;
+            const {order_type, price, quantity} = data;
+            const lobbyActionUrl = "{{ url_for('player_trade', lobby_id=lobby.id) }}";
 
-            // Update the bids table
-            const bidsTableBody = document.querySelector("#bids-table tbody");
-            bidsTableBody.innerHTML = bids
-                .map(
-                    (bid) => `
+            console.log("market update received:", data);
+        
+            if (order_type === "bid") {
+                const bidsTableBody = document.querySelector("#bids-table");
+                console. log("bids table body:", bidsTableBody);
+                const newRow = `
                     <tr>
-                        <td class="text-center text-success">${bid.price}</td>
-                        <td class="text-center">${bid.total_quantity}</td>
+                        <td class="text-center text-success">${ price }</td>
+                        <td class="text-center">${ quantity }</td>
+                        <td class="text-center">
+                            <form action="${lobbyActionUrl}" method="POST">
+                                <input type="hidden" name="type" value="sell">
+                                <input type="hidden" name="price" value="${ price }">
+                                <input type="hidden" name="quantity" value="${ quantity }">
+                                <button type="submit" class="btn btn-success btn-xs">Sell</button>
+                            </form>
+                        </td>
                     </tr>
-                `
-                )
-                .join("");
-
-            // Update the asks table
-            const asksTableBody = document.querySelector("#asks-table tbody");
-            asksTableBody.innerHTML = asks
-                .map(
-                    (ask) => `
+                `;
+                bidsTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new bid at the top
+            } else if (order_type === "ask") {
+                const asksTableBody = document.querySelector("#asks-table");
+                const newRow = `
                     <tr>
-                        <td class="text-center text-danger">${ask.price}</td>
-                        <td class="text-center">${ask.total_quantity}</td>
+                        <td class="text-center"> ${quantity }</td>
+                        <td class="text-center text-danger">${ price }</td>
+                        <td class="text-center">
+                            <form action="${lobbyActionUrl}" method="POST">
+                                <input type="hidden" name="type" value="buy">
+                                <input type="hidden" name="price" value="${ price }">
+                                <input type="hidden" name="quantity" value="${ quantity }">
+                                <button type="submit" class="btn btn-success btn-xs">Buy</button>
+                            </form>
+                        </td>
                     </tr>
-                `
-                )
-                .join("");
+                `;
+                asksTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new ask at the top
+            }
         });
 
         // Listen for trade updates
         socket.on("trade_update", (trade) => {
-            const tradeHistoryTableBody = document.querySelector("#trade-history-table tbody");
+            const {price, quantity, buyer, seller, time} = trade;
+            const tradeTableBody = document.querySelector("#trades-table");
             const newRow = `
                 <tr>
-                    <td class="text-center">${trade.price}</td>
-                    <td class="text-center">${trade.quantity}</td>
-                    <td class="text-center">${trade.timestamp}</td>
+                    <td class="text-center">${ price}</td>
+                    <td class="text-center">${ quantity }</td>
+                    <td class="text-center">${ time }</td>
+                    <td class="text-center">${ buyer }</td>
+                    <td class="text-center">${ seller }</td>
                 </tr>
             `;
+            tradeTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new bid at the top
 
-            // Prepend the new trade to the table
-            tradeHistoryTableBody.insertAdjacentHTML("afterbegin", newRow);
+            // Update portfolio if needed
+            if (buyer === username) {
+                const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
+                const userPortfolioCash = document.querySelector("#user-portfolio-cash");
+                userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) + parseInt(quantity);
+                const newCash = parseInt(userPortfolioCash.innerText) - (parseInt(price) * parseInt(quantity));
+                if(newCash >= 0){
+                    userPortfolioCash.innerText = '$${newCash}';
+                } else {
+                    userPortfolioCash.innerText = '-$$abs(newCash)';
+                }
+            } else if (seller === username) {
+                const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
+                const userPortfolioCash = document.querySelector("#user-portfolio-cash");
+                userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) - parseInt(quantity);
+                const newCash = parseInt(userPortfolioCash.innerText) + (parseInt(price) * parseInt(quantity));
+                if(newCash >= 0){
+                    userPortfolioCash.innerText = '$${newCash}';
+                } else {
+                    userPortfolioCash.innerText = '-$$abs(newCash)';
+                }            
+            }
         });
 
         // Listen for roster updates
