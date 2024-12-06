@@ -151,9 +151,9 @@
                                 <td class="text-center" id="user-portfolio-contracts">{{ user_portfolio.contracts }}</td>
                                 <td class="text-center" id="user-portfolio-cash">
                                     {% if user_portfolio.cash >= 0 %}
-                                        ${{ user_portfolio.cash }}
+                                        ${{ user_portfolio.cash| round(2) }}
                                     {% else %}
-                                        -${{ user_portfolio.cash|abs }}
+                                        -${{ user_portfolio.cash|abs | round(2) }}
                                     {% endif %}
                                 </td>
                             </tr>
@@ -226,6 +226,29 @@
         // Initialize Socket.IO connection
         const socket = io();
 
+        function persistentSessionLog(message) {
+            // Log to the console
+            console.log(message);
+
+            // Retrieve existing logs from sessionStorage
+            let logs = JSON.parse(sessionStorage.getItem('sessionLogs')) || [];
+
+            // Add the new log message
+            logs.push(`${new Date().toISOString()} - ${message}`);
+
+            // Store the updated logs back in sessionStorage
+            sessionStorage.setItem('sessionLogs', JSON.stringify(logs));
+        }
+
+        // On page load, retrieve and display all previous logs
+        document.addEventListener("DOMContentLoaded", () => {
+            const storedLogs = JSON.parse(sessionStorage.getItem('sessionLogs')) || [];
+            storedLogs.forEach(log => {
+                console.log(log);
+            });
+        });
+
+
         // Get the current lobby ID and username from Flask
         const lobbyId = "{{ lobby.id }}";
         const username = "{{ session.get('username') }}";
@@ -250,18 +273,18 @@
         // Listen for timer updates
         socket.on('timer_update', (data) => {
             document.getElementById('timer').innerText = `${data.game_length}`;
-            console.log(`Time Remaining: ${data.game_length} second`);
+            //console.log(`Time Remaining: ${data.game_length} second`);
         });
 
         // Listen for when the timer ends
         socket.on('timer_ended', (data) => {
-            console.log('Timer Ended');
+            //console.log('Timer Ended');
             document.getElementById('timer').innerText = data.message;
 
-            // Redirect the user after 2 seconds
+            // Redirect the user after 30 seconds
             setTimeout(() => {
                 window.location.href = data.redirect_url;
-            }, 2000);
+            }, 30000);
         });
 
         // Listen for market updates (bids and asks)
@@ -269,11 +292,11 @@
             const {order_type, price, quantity} = data;
             const lobbyActionUrl = "{{ url_for('player_trade', lobby_id=lobby.id) }}";
 
-            console.log("market update received:", data);
+            persistentSessionLog("market update received:", data);
         
             if (order_type === "bid") {
                 const bidsTableBody = document.querySelector("#bids-table");
-                console. log("bids table body:", bidsTableBody);
+                console.log("bids table body:", bidsTableBody);
                 const newRow = `
                     <tr>
                         <td class="text-center text-success">${ price }</td>
@@ -310,22 +333,24 @@
         });
 
         // Listen for trade updates
-        socket.on("trade_update", (trade) => {
-            const {price, quantity, buyer, seller, time} = trade;
+        socket.on("trade_update", (data) => {
+            const {price, quantity, buyer_name, buyer_id, seller_name, seller_id, time} = data;
+            
+            persistentSessionLog("trade received:", data);
             const tradeTableBody = document.querySelector("#trades-table");
             const newRow = `
                 <tr>
                     <td class="text-center">${ price}</td>
                     <td class="text-center">${ quantity }</td>
                     <td class="text-center">${ time }</td>
-                    <td class="text-center">${ buyer }</td>
-                    <td class="text-center">${ seller }</td>
+                    <td class="text-center">${ buyer_name }</td>
+                    <td class="text-center">${ seller_name }</td>
                 </tr>
             `;
-            tradeTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new bid at the top
+            tradeTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new trade at the top
 
             // Update portfolio if needed
-            if (buyer === username) {
+            if (buyer_name === username) {
                 const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
                 const userPortfolioCash = document.querySelector("#user-portfolio-cash");
                 userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) + parseInt(quantity);
@@ -335,7 +360,8 @@
                 } else {
                     userPortfolioCash.innerText = '-$$abs(newCash)';
                 }
-            } else if (seller === username) {
+            }
+            if (seller_name === username) {
                 const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
                 const userPortfolioCash = document.querySelector("#user-portfolio-cash");
                 userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) - parseInt(quantity);

@@ -126,7 +126,8 @@ def add_bot_to_lobby(lobby_id):
     # Add bot to the lobby
     bot_id = str(uuid.uuid4())
     bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
-    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now()})  # Mark bot as ready
+    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now(), "id": bot_id})  # Mark bot as ready
+    db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)", game_id=lobby_id, user_id=bot_id, username=bot_name)
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
@@ -372,7 +373,7 @@ def countdown_timer(lobby_id, redirect_url):
     Background function that handles the countdown timer for the lobby.
     """
     while True:
-        print("starting timer")
+        #print("starting timer")
         # Find the lobby
         lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
@@ -381,23 +382,23 @@ def countdown_timer(lobby_id, redirect_url):
 
         # Countdown logic
         if lobby["game_length"] > 0:
-            print("decreasing timer")
+            #print("decreasing timer")
             time.sleep(1)  # Wait for 1 second
             lobby["game_length"] -= 1
             # Emit timer update to all clients in the lobby
-            print("emitting timer update")
+            #print("emitting timer update")
             socketio.emit('timer_update', {'game_length': lobby["game_length"]}, room=lobby_id)
-            print("emitted timer update")
+            #print("emitted timer update")
         else:
             # Timer reaches zero
-            print("ending timer")
+            #print("ending timer")
             socketio.emit('timer_ended', {'message': 'Time is up! Game over!', 'redirect_url': redirect_url}, room=lobby_id)
-            print("emitted timer ended")
+            #print("emitted timer ended")
 
             # End the game
             end_game_helper(lobby_id)
             break
-        print(f"time remaining: {lobby['game_length']}")
+        #print(f"time remaining: {lobby['game_length']}")
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
@@ -517,26 +518,30 @@ def finalize_game_results(game_id, lobby):
         lobby (dict): The lobby object containing information about the game's state.
     """
     # Retrieve the scenario and fair value from the `lobby` dictionary
+    print("retrieve scenario and fair value")
     scenario = lobby.get("market_question")
     lobby_id = lobby.get("id")
 
     fair_value = get_fair_value(lobby_id)
 
     # Aggregate performance data for each user based on the fair market value
+    print("aggregating performance data")
     db.execute("""
-        INSERT INTO game_results (user_id, game_id, scenario, pnl, accuracy, time_taken, created_at)
+        INSERT INTO game_results (user_id, game_id, scenario, pnl, accuracy, time_taken, created_at, trades_completed)
         SELECT
             t.buyer_id AS user_id,
             t.game_id,
             :scenario AS scenario,
-            SUM(
-                CASE
-                    WHEN t.buyer_id IS NOT NULL THEN :fair_value - t.price  -- Profit for buyers
-                    WHEN t.seller_id IS NOT NULL THEN t.price - :fair_value -- Profit for sellers
-                END
-            ) AS pnl,
-            TODO.  
+            SUM(:fair_value - t.price) AS pnl,
+            COUNT(t.id) AS trades_completed,
+            ROUND(CASE WHEN COUNT(t.id) > 0
+                THEN SUM(CASE WHEN :fair_value > t.price THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id)
+                ELSE 0
+            END, 2) AS accuracy,
+            g.game_length AS time_taken,
+            g.created_at AS created_at
         FROM transactions t
+        JOIN games g ON t.game_id = g.id
         WHERE t.game_id = :game_id
         GROUP BY t.buyer_id
     """, game_id=game_id, scenario=scenario, fair_value=fair_value)
@@ -661,7 +666,8 @@ def join_lobby(lobby_id):
             return redirect(url_for("play"))
 
         # Add the player to the lobby
-        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False, "last_active": datetime.now()})
+        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False, "last_active": datetime.now(), "id": str(session["user_id"])})
+        db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)", game_id=lobby_id, user_id=str(session["user_id"]), username=session.get("username"))
         lobby["current_players"] += 1
 
         # Notify the lobby of the updated players list
@@ -737,6 +743,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
         trade_price (float): The price at which the trade is executed.
         trade_quantity (float): The quantity of the trade.
     """
+    print(f"executing trade for {game_id}, {user_id}, {trade_type}, {trade_price}, {trade_quantity}")
     if trade_type == "buy":
         # Match with the best ask
         best_ask = db.execute("""
@@ -744,11 +751,14 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             WHERE game_id = :game_id AND order_type = 'ask' AND price <= :trade_price
             ORDER BY price ASC, created_at ASC LIMIT 1
         """, game_id=game_id, trade_price=trade_price)
+        print("best ask: ", best_ask)
 
         if best_ask:
             ask = best_ask[0]
+            print("ask: ", ask)
             quantity_to_trade = min(ask["quantity"], trade_quantity)
 
+            print("trade is: ", user_id, ask['user_id'], ask["price"], quantity_to_trade)
             # Record the transaction
             db.execute("""
                 INSERT INTO transactions (game_id, buyer_id, seller_id, price, quantity, created_at)
@@ -763,9 +773,18 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             else:
                 db.execute("DELETE FROM orders WHERE id = :id", id=ask["id"])
 
+            # Get the buyer and seller names
+            for lobby in lobbies:
+                if lobby["id"] == game_id:
+                    print("Players: ", lobby["players"])
+                    buyer_name = next((player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
+                    seller_name = next((player["name"] for player in lobby["players"] if player["id"] == ask["user_id"]), None)
+                    break
             # Emit real-time trade update
-            socketio.emit("market_update", 
-                {'price': ask['price'], 'quantity': quantity_to_trade, 'buyer': user_id, 'seller': ask['user_id'], 'time': datetime.now()
+            print("completing trade with price: ", ask['price'], " quantity: ", quantity_to_trade, "buyer: ", buyer_name, str(user_id), " and seller: ", seller_name, ask["user_id"])
+            print("types: ",type(seller_name), type(buyer_name))
+            socketio.emit("trade_update", 
+                {'price': ask['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': user_id, 'seller_name': seller_name, 'seller_id': ask["user_id"],'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }, room=game_id)
         else:
             flash("No matching ask found", "danger")
@@ -777,6 +796,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             WHERE game_id = :game_id AND order_type = 'bid' AND price >= :trade_price
             ORDER BY price DESC, created_at ASC LIMIT 1
         """, game_id=game_id, trade_price=trade_price)
+        print("best bid: ", best_bid)
 
         if best_bid:
             bid = best_bid[0]
@@ -796,9 +816,18 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             else:
                 db.execute("DELETE FROM orders WHERE id = :id", id=bid["id"])
 
+            # Get the buyer and seller names
+            for lobby in lobbies:
+                if lobby["id"] == game_id:
+                    print("Players: ", lobby["players"])
+                    buyer_name = next((player["name"] for player in lobby["players"] if player["id"] == bid["user_id"]), None)
+                    seller_name = next((player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
+                    break
             # Emit real-time trade update
-            socketio.emit("market_update", 
-                {'price': bid['price'], 'quantity': quantity_to_trade, 'buyer': bid["user_id"], 'seller': user_id, 'time': datetime.now()
+            print("completing trade with price: ", bid['price'], " quantity: ", quantity_to_trade, "buyer: ", buyer_name, bid["user_id"], " and seller: ", seller_name, user_id)
+            print("types: ",type(seller_name), type(buyer_name))
+            socketio.emit("trade_update", 
+                {'price': bid['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': bid["user_id"], 'seller_name': seller_name, 'seller_id': user_id, 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }, room=game_id)
         else:
             flash("No matching bid found", "danger")
@@ -819,7 +848,7 @@ def player_trade(lobby_id):
 
     # Emit real-time player action update
     socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id, "action": trade_type, "price": trade_price, "quantity": trade_quantity}, room=lobby_id)
-
+    #return ('', 204)
     return redirect(url_for("game", lobby_id=lobby_id))
 
 @app.route("/set_order/<lobby_id>", methods=["POST"])
@@ -880,20 +909,26 @@ def game(lobby_id):
     """, game_id=lobby_id)
 
     # Get trade history
+    transactions = db.execute("""SELECT * FROM transactions t where t.game_id = :game_id""", game_id=lobby_id)
+    print("transactions:", transactions)
+    game_participants = db.execute("""SELECT * FROM game_participants gp where gp.game_id = :game_id""", game_id=lobby_id)
+    print("game participants:", game_participants)
+
     trade_history = db.execute("""
-        SELECT 
+        SELECT DISTINCT
             t.price, 
             t.quantity, 
             t.created_at,
             buyer.username AS buyer,
             seller.username AS seller
         FROM transactions t
-        LEFT JOIN game_participants buyer ON t.buyer_id = buyer.id
-        LEFT JOIN game_participants seller ON t.seller_id = seller.id
+        LEFT JOIN game_participants buyer ON t.buyer_id = buyer.user_id
+        LEFT JOIN game_participants seller ON t.seller_id = seller.user_id
         WHERE t.game_id = :game_id
         ORDER BY t.created_at DESC
         LIMIT 10
     """, game_id=lobby_id)
+    print("trade history:", trade_history)
 
     # Make trades a portfolio
     user_portfolio = {"contracts": 0, "cash": 0}
@@ -901,9 +936,10 @@ def game(lobby_id):
         if trade["buyer"] == session["username"]:
             user_portfolio["contracts"] += trade["quantity"]
             user_portfolio["cash"] -= trade["price"] * trade["quantity"]
-        elif trade["seller"] == session["username"]:
+        if trade["seller"] == session["username"]:
             user_portfolio["contracts"] -= trade["quantity"]
             user_portfolio["cash"] += trade["price"] * trade["quantity"]
+    user_portfolio["cash"] = round(user_portfolio["cash"], 2)
 
     # Prepare data for rendering
     context = {
@@ -951,21 +987,30 @@ def cleanup_game_data(game_id, lobby):
         print(f"Skipping finalizing game results for game ID {game_id}. Game was never started.")
     else:
         # Finalize game results only if the game was started
+        print("finalizizing game results")
         finalize_game_results(game_id, lobby)
 
     # Mark game as completed in the database
+    print("marking game as completed")
     mark_game_as_completed(game_id)
 
-    # Delete old orders and transactions from the database
+    # Delete old orders from the database
+    print("deleting old orders")
     db.execute("""
         DELETE FROM orders WHERE game_id = :game_id
     """, game_id=game_id)
 
+    # Delete old transactions from the database
+    print("deleting old transactions")
     db.execute("""
         DELETE FROM transactions WHERE game_id = :game_id
     """, game_id=game_id)
 
-
+    # Delete game participants from the database
+    print("deleting game participants")
+    db.execute("""
+        DELETE FROM game_participants WHERE game_id = :game_id
+    """, game_id=game_id)
 
 def cleanup_all(lobby_id):
     """
@@ -982,20 +1027,20 @@ def cleanup_all(lobby_id):
             return
 
         print(f"Starting full cleanup for lobby ID: {lobby_id}")
-        print("current lobbies are:", lobbies)
 
         # Perform database cleanup
+        print("cleaning database")
         cleanup_game_data(lobby_id, lobby)
         print("cleaned database successfully")
 
         # Perform memory cleanup
+        print("cleaning memory")
         cleanup_lobby(lobby_id)
         print("cleaned memory successfully")
 
         print(f"Full cleanup for lobby ID {lobby_id} completed successfully.")
 
     except Exception as e:
-        print("current lobbies are:", lobbies)
         print(f"Error during full cleanup for lobby ID {lobby_id}: {e}")
         raise
 
@@ -1067,7 +1112,7 @@ def start_game(lobby_id):
     Args:
         lobby_id (str): The ID of the lobby to start the game for.
     """
-    logging.debug(f"starting game for lobby {lobby_id}")
+    print(f"starting game for lobby {lobby_id}")
 
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
@@ -1144,20 +1189,23 @@ def end_game_helper(lobby_id):
                 GROUP BY t.buyer_id
                 ORDER BY pnl DESC
             """, game_id=lobby_id, fair_value=markets[lobby_id]["fair_value"])
+            print("leaderboard generated")
 
+            print("converting leaderboard")
             # Convert leaderboard to a list of dictionaries
             leaderboard_data = [
                 {
-                    "user_id": entry["user_id"],
+                    "user_id": next((player["name"] for player in lobby["players"] if player["id"] == entry["user_id"]), None),
                     "pnl": round(entry["pnl"], 2),
                     "trade_count": entry["trade_count"],
                     "accuracy": entry["accuracy"],
                 }
                 for entry in leaderboard
             ]
+            print("leaderboard converted")
 
             # Notify all players in the lobby about the leaderboard
-            print("send out leaderboard")
+            print("sending out leaderboard")
             socketio.emit("game_end_leaderboard", {"leaderboard": leaderboard_data}, room=lobby_id)
 
         # Notify all players in the lobby about the game ending

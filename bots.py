@@ -1,7 +1,7 @@
 import random
 from datetime import datetime, timedelta
 BOTS = {}  # Dictionary to track active bots in all lobbies
-DATE_FORM = '%Y-%m-%d %H:%M:%S'
+DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 class Bot:
     def __init__(self, bot_id, name, fair_value, lobby_id, level="medium"):
