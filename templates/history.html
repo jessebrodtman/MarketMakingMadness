@@ -40,7 +40,6 @@
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Date</th>
                     <th>Scenario</th>
                     <th>P&L</th>
                     <th>Accuracy</th>
@@ -51,9 +50,8 @@
                 {% for game in games %}
                 <tr>
                     <td>{{ loop.index }}</td>
-                    <td>{{ game.date }}</td>
                     <td>{{ game.scenario }}</td>
-                    <td>${{ game.pnl }}</td>
+                    <td>${{ game.pnl | round(2)}}</td>
                     <td>{{ game.accuracy }}%</td>
                     <td>{{ game.time_taken }} mins</td>
                 </tr>

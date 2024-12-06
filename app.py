@@ -352,7 +352,7 @@ def history():
 
     # Fetch detailed game history
     games = db.execute("""
-        SELECT date(created_at) AS date, scenario, pnl, accuracy, time_taken
+        SELECT scenario, pnl, accuracy, time_taken
         FROM game_results
         WHERE user_id = :user_id
         ORDER BY created_at DESC
@@ -361,7 +361,7 @@ def history():
     # Render the history page with all data
     return render_template(
         "history.html",
-        total_pnl=stats["total_pnl"],
+        total_pnl=round(stats["total_pnl"], 2),
         total_games=total_games,
         best_pnl=stats["best_pnl"],
         winning_percentage=round(winning_percentage, 2),
