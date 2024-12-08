@@ -16,7 +16,12 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <h2>Total Profit & Loss</h2>
-                <p class="stat-value">${{ total_pnl }}</p>
+                <p class="stat-value">
+                {% if total_pnl >= 0 %}
+                    ${{ total_pnl | round(2) }}
+                {% else %}
+                    -${{ total_pnl|abs | round(2) }}
+                {% endif %}</p>
             </div>
             <div class="stat-card">
                 <h2>Total Games Played</h2>
@@ -28,7 +33,11 @@
             </div>
             <div class="stat-card">
                 <h2>Best P&L</h2>
-                <p class="stat-value">${{ best_pnl }}</p>
+                <p class="stat-value">{% if best_pnl >= 0 %}
+                    ${{ best_pnl | round(2) }}
+                {% else %}
+                    -${{ best_pnl|abs | round(2) }}
+                {% endif %}</p>
             </div>
         </div>
     </section>
@@ -49,7 +58,13 @@
                 <tr>
                     <td>{{ loop.index }}</td>
                     <td>{{ game.scenario }}</td>
-                    <td>${{ game.pnl | round(2)}}</td>
+                    <td>
+                        {% if game.pnl >= 0 %}
+                            ${{ game.pnl | round(2) }}
+                        {% else %}
+                            -${{ game.pnl|abs | round(2) }}
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
