@@ -6,14 +6,7 @@ DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 class Bot:
     def __init__(self, bot_id, name, fair_value, lobby_id, level="medium"):
         """
-        Initialize the bot with its properties.
-
-        Args:
-            bot_id (str): A unique ID for the bot.
-            name (str): The bot's name.
-            fair_value (float): The actual fair value of the market.
-            lobby_id (int): The lobby/game ID the bot is participating in.
-            level (str): Bot difficulty level ("easy", "medium", "hard", "Jane Street").
+        Initialize the bot with its properties
         """
         self.bot_id = bot_id
         self.name = name
@@ -23,8 +16,8 @@ class Bot:
         self.pnl = 0
         self.current_bid = None
         self.current_ask = None
-        self.last_trade_time = datetime.now()  # Track the last time the bot traded
-        self.market_maturity = 0  # Tracks market maturity level (increases over time)
+        self.last_trade_time = datetime.now()
+        self.market_maturity = 0 
         self.market_state = {
             "best_bid": None,
             "best_ask": None,
@@ -35,10 +28,7 @@ class Bot:
 
     def update_market_state(self, market_state):
         """
-        Update the bot's view of the market state.
-
-        Args:
-            market_state (dict): Contains information on current bids/asks and trades.
+        Update the bot's view of the market state
         """
         self.market_state = market_state
 
@@ -47,11 +37,9 @@ class Bot:
 
     def generate_bid_ask(self):
         """
-        Generate a bid/ask price based on the bot level, current market state, and market depth.
-
-        Returns:
-            tuple: (bid_price, ask_price)
+        Generate a bid/ask price based on the bot level, current market state, and market depth
         """
+        # Generate random noise based on bot level
         level_noise = {
             "easy": random.uniform(5, 10),
             "medium": random.uniform(2, 5),
@@ -97,10 +85,7 @@ class Bot:
     def decide_to_trade(self):
         """
         Decide whether the bot will execute a trade based on market conditions,
-        depth, and recent activity in the market.
-
-        Returns:
-            dict: Trade details if the bot chooses to trade, otherwise None.
+        depth, and recent activity in the market
         """
         best_ask = self.market_state.get("best_ask", None)
         best_bid = self.market_state.get("best_bid", None)
@@ -122,13 +107,7 @@ class Bot:
 
     def _get_trade_frequency_modifier(self, last_trades):
         """
-        Determine how often the bot should trade based on market activity.
-
-        Args:
-            last_trades (list): List of recent trades.
-
-        Returns:
-            float: A probability multiplier for trading frequency.
+        Determine how often the bot should trade based on market activity
         """
         now = datetime.now()
         recent_trades = [
@@ -145,11 +124,7 @@ class Bot:
 
     def update_pnl(self, trade_price, trade_type):
         """
-        Update the bot's P&L based on completed trades.
-
-        Args:
-            trade_price (float): Price at which the trade was executed.
-            trade_type (str): Either 'buy' or 'sell'.
+        Update the bot's P&L based on completed trades
         """
         if trade_type == "buy":
             self.pnl -= trade_price
@@ -158,10 +133,7 @@ class Bot:
 
     def should_update_quotes(self):
         """
-        Decide whether the bot should post new bid/ask prices based on market conditions.
-        
-        Returns:
-            bool: True if the bot should update its quotes, False otherwise.
+        Decide whether the bot should post new bid/ask prices based on market conditions
         """
         now = datetime.now()
         time_since_last_trade = (now - self.last_trade_time).total_seconds()
@@ -187,7 +159,7 @@ class Bot:
 
 def create_bot(bot_id, name, fair_value, lobby_id, level="medium"):
     """
-    Create a new bot and add it to the BOTS dictionary.
+    Create a new bot and add it to the BOTS dictionary
     """
     new_bot = Bot(bot_id, name, fair_value, lobby_id, level)
     BOTS[bot_id] = new_bot
@@ -195,13 +167,13 @@ def create_bot(bot_id, name, fair_value, lobby_id, level="medium"):
 
 def remove_bot(bot_id):
     """
-    Remove a bot from the BOTS dictionary.
+    Remove a bot from the BOTS dictionary
     """
     if bot_id in BOTS:
         del BOTS[bot_id]
 
 def get_bots_in_lobby(lobby_id):
     """
-    Get all bots in a specific lobby.
+    Get all bots in a specific lobby
     """
     return [bot for bot in BOTS.values() if bot.lobby_id == lobby_id]

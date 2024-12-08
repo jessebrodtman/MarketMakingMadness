@@ -10,7 +10,7 @@
 
 {% block main %}
 <div class="register-container d-flex">
-    <!-- Left side: Form -->
+    <!-- Registration Form -->
     <div class="register-form-container col-lg-6 p-5">
         <h1 class="text-center">Create an account</h1>
         <p class="text-center mb-4">Start your journey with MarketMakingMadness!</p>
@@ -41,11 +41,6 @@
                 Already have an account? <a href="/login" class="text-decoration-none">Sign in</a>
             </p>
         </form>
-    </div>
-
-    <!-- Right side: Illustration -->
-    <div class="register-illustration-container col-lg-6 d-none d-lg-block">
-        <img src="{{ url_for('static', filename='images/register-illustration.jpg') }}" alt="Register Illustration" class="img-fluid">
     </div>
 </div>
 {% endblock %}

@@ -1,15 +1,14 @@
 import os
 from cs50 import SQL
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, join_room, leave_room
 import uuid
-from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
-from markets import get_random_market, get_market_answer, get_all_markets, add_market
-from bots import Bot, BOTS, create_bot, remove_bot, get_bots_in_lobby
+from markets import get_random_market
+from bots import BOTS, create_bot, get_bots_in_lobby
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 import time, threading
 from threading import Lock
 import logging
@@ -368,7 +367,7 @@ def history():
 
     # Get detailed game history
     games = db.execute("""
-        SELECT scenario, pnl, accuracy, time_taken
+        SELECT scenario, pnl
         FROM game_results
         WHERE user_id = :user_id
         ORDER BY created_at DESC
@@ -520,21 +519,35 @@ def finalize_game_results(game_id, lobby):
     db.execute("""
         INSERT INTO game_results (user_id, game_id, scenario, pnl, accuracy, time_taken, created_at, trades_completed)
         SELECT
-            t.buyer_id AS user_id,
-            t.game_id,
+            user_id,
+            :game_id AS game_id,
             :scenario AS scenario,
-            SUM(:fair_value - t.price) AS pnl,
-            COUNT(t.id) AS trades_completed,
-            ROUND(CASE WHEN COUNT(t.id) > 0
-                THEN SUM(CASE WHEN :fair_value > t.price THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id)
+            SUM(pnl) AS pnl,
+            COUNT(*) AS trades_completed,
+            ROUND(CASE WHEN COUNT(*) > 0
+                THEN SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
                 ELSE 0
             END, 2) AS accuracy,
             g.game_length AS time_taken,
             g.created_at AS created_at
-        FROM transactions t
-        JOIN games g ON t.game_id = g.id
-        WHERE t.game_id = :game_id
-        GROUP BY t.buyer_id
+        FROM (
+            -- Buyer Data
+            SELECT
+                t.buyer_id AS user_id,
+                (:fair_value - t.price) AS pnl
+            FROM transactions t
+            WHERE t.game_id = :game_id
+            UNION ALL
+            -- Seller Data
+            SELECT
+                t.seller_id AS user_id,
+                (t.price - :fair_value) AS pnl
+            FROM transactions t
+            WHERE t.game_id = :game_id
+        ) AS combined
+        JOIN games g ON g.id = :game_id
+        GROUP BY user_id
+
     """, game_id=game_id, scenario=scenario, fair_value=fair_value)
 
 def mark_game_as_completed(game_id):
@@ -1129,16 +1142,31 @@ def end_game_helper(lobby_id):
             # Fetch P&L leaderboard from transactions
             leaderboard = db.execute("""
                 SELECT
-                    t.buyer_id AS user_id,
-                    SUM(:fair_value - t.price) AS pnl,
-                    COUNT(t.id) AS trade_count,
-                    ROUND(CASE WHEN COUNT(t.id) > 0
-                        THEN SUM(CASE WHEN :fair_value > t.price THEN 1 ELSE 0 END) * 100.0 / COUNT(t.id)
+                    user_id,
+                    SUM(pnl) AS pnl,
+                    COUNT(*) AS trade_count,
+                    ROUND(CASE WHEN COUNT(*) > 0
+                        THEN SUM(CASE WHEN (pnl > 0) THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
                         ELSE 0
                     END, 2) AS accuracy
-                FROM transactions t
-                WHERE t.game_id = :game_id
-                GROUP BY t.buyer_id
+                FROM (
+                    -- Buyer Data
+                    SELECT
+                        t.buyer_id AS user_id,
+                        (:fair_value - t.price) AS pnl  -- PnL for buyers
+                    FROM transactions t
+                    WHERE t.game_id = :game_id
+
+                    UNION ALL
+
+                    -- Seller Data
+                    SELECT
+                        t.seller_id AS user_id,
+                        (t.price - :fair_value) AS pnl  -- PnL for sellers
+                    FROM transactions t
+                    WHERE t.game_id = :game_id
+                ) AS combined
+                GROUP BY user_id
                 ORDER BY pnl DESC
             """, game_id=lobby_id, fair_value=markets[lobby_id]["fair_value"])
             print("leaderboard generated")

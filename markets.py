@@ -110,7 +110,7 @@ MARKETS = {
 
 def get_random_market():
     """
-    Returns a random market question and its correct answer as a dictionary.
+    Returns a random market question and its correct answer as a dictionary
     """
     question = random.choice(list(MARKETS.keys()))
     answer = MARKETS[question]
@@ -119,20 +119,20 @@ def get_random_market():
 
 def get_market_answer(market_question):
     """
-    Returns the correct answer for a specific market question.
+    Returns the correct answer for a specific market question
     """
     return MARKETS.get(market_question, None)
 
 def get_all_markets():
     """
-    Returns the entire dictionary of markets.
+    Returns the entire dictionary of markets
     """
     return MARKETS
 
 def add_market(question, answer):
     """
-    Adds a new market question and answer to the dictionary.
-    Ensures no duplicates.
+    Adds a new market question and answer to the dictionary
+    Ensures no duplicates
     """
     if question in MARKETS:
         raise ValueError("Market question already exists.")

@@ -8,8 +8,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='game.css') }}">
 {% endblock %}
 
-
-
 {% block main %}
     <div class="game-container mt-5">
         <!-- Timer Display -->
@@ -135,7 +133,7 @@
 
     <div class="game-container mt-5">
         <div class="row">
-            <!-- Roster Section -->
+            <!-- Portfolio Section -->
             <div class="col-md-6">
                 <h4 class="game-section-title text-center">Your Portfolio</h4>
                 <div class="game-trade--container">
@@ -159,12 +157,6 @@
                             </tr>
                         </tbody>
                     </table>
-                    <!-- Scrollable if more than 10 trades -->
-                    {% if trade_history|length > 10 %}
-                        <div class="text-center mt-3">
-                            <button class="game-btn btn btn-secondary btn-sm" onclick="scrollToFullTradeHistory()">View Full History</button>
-                        </div>
-                    {% endif %}
                 </div>
             </div>
 
@@ -221,33 +213,9 @@
         </div>
     </div>
     <!-- Cant use external js file due to needing the jinja variables -->
-    <!-- <script src="{{ url_for('static', filename='js/game.js') }}"></script> -->
     <script>
         // Initialize Socket.IO connection
         const socket = io();
-
-        function persistentSessionLog(message) {
-            // Log to the console
-            console.log(message);
-
-            // Retrieve existing logs from sessionStorage
-            let logs = JSON.parse(sessionStorage.getItem('sessionLogs')) || [];
-
-            // Add the new log message
-            logs.push(`${new Date().toISOString()} - ${message}`);
-
-            // Store the updated logs back in sessionStorage
-            sessionStorage.setItem('sessionLogs', JSON.stringify(logs));
-        }
-
-        // On page load, retrieve and display all previous logs
-        document.addEventListener("DOMContentLoaded", () => {
-            const storedLogs = JSON.parse(sessionStorage.getItem('sessionLogs')) || [];
-            storedLogs.forEach(log => {
-                console.log(log);
-            });
-        });
-
 
         // Get the current lobby ID and username from Flask
         const lobbyId = "{{ lobby.id }}";
@@ -273,12 +241,10 @@
         // Listen for timer updates
         socket.on('timer_update', (data) => {
             document.getElementById('timer').innerText = `${data.game_length}`;
-            //console.log(`Time Remaining: ${data.game_length} second`);
         });
 
         // Listen for when the timer ends
         socket.on('timer_ended', (data) => {
-            //console.log('Timer Ended');
             document.getElementById('timer').innerText = data.message;
 
             // Redirect the user after 30 seconds
@@ -291,10 +257,9 @@
         socket.on("market_update", (data) => {
             const {order_type, price, quantity} = data;
             const lobbyActionUrl = "{{ url_for('player_trade', lobby_id=lobby.id) }}";
-
-            persistentSessionLog("market update received:", data);
         
             if (order_type === "bid") {
+                // Add new bids
                 const bidsTableBody = document.querySelector("#bids-table");
                 console.log("bids table body:", bidsTableBody);
                 const newRow = `
@@ -313,6 +278,7 @@
                 `;
                 bidsTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new bid at the top
             } else if (order_type === "ask") {
+                // Add new asks
                 const asksTableBody = document.querySelector("#asks-table");
                 const newRow = `
                     <tr>
@@ -334,9 +300,8 @@
 
         // Listen for trade updates
         socket.on("trade_update", (data) => {
+            // Add the new trade to the trade history table
             const {price, quantity, buyer_name, buyer_id, seller_name, seller_id, time} = data;
-            
-            persistentSessionLog("trade received:", data);
             const tradeTableBody = document.querySelector("#trades-table");
             const newRow = `
                 <tr>
@@ -350,6 +315,7 @@
             tradeTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new trade at the top
 
             // Update portfolio if needed
+            // If buyer, add more contracts and subtract cash
             if (buyer_name === username) {
                 const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
                 const userPortfolioCash = document.querySelector("#user-portfolio-cash");
@@ -361,34 +327,18 @@
                     userPortfolioCash.innerText = `-$${abs(newCash)}`;
                 }
             }
+            // If seller, subtract contracts and add cash
             if (seller_name === username) {
                 const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
                 const userPortfolioCash = document.querySelector("#user-portfolio-cash");
                 userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) - parseInt(quantity);
                 const newCash = parseInt(userPortfolioCash.innerText) + (parseInt(price) * parseInt(quantity));
                 if(newCash >= 0){
-                    userPortfolioCash.innerText = '$${newCash}';
+                    userPortfolioCash.innerText = `$${newCash}`;
                 } else {
-                    userPortfolioCash.innerText = '-$$abs(newCash)';
+                    userPortfolioCash.innerText = `-$${abs(newCash)}`;
                 }            
             }
-        });
-
-        // Listen for roster updates
-        socket.on("roster_update", (data) => {
-            const rosterList = document.querySelector("#roster-list");
-            rosterList.innerHTML = data.players
-                .map(
-                    (player) => `
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>${player.name}</span>
-                        <span class="badge ${
-                            player.ready ? "bg-success" : "bg-danger"
-                        }">${player.ready ? "Ready" : "Not Ready"}</span>
-                    </li>
-                `
-                )
-                .join("");
         });
 
         // Listen for the leaderboard data when the game ends
@@ -451,8 +401,5 @@
             const leaderboardModal = new bootstrap.Modal(document.getElementById("leaderboardModal"));
             leaderboardModal.show();
         }
-
-
-
     </script>
 {% endblock %}
