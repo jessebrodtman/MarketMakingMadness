@@ -119,6 +119,17 @@
     window.addEventListener("beforeunload", () => {
         socket.emit("leave_room_event", { lobby_id: lobbyId, username });
     });
+
+    socket.on("force_refresh", () => {
+        window.location.reload(); // Refresh the page
+    });
+
+    // Listen for the game_started event
+    socket.on("game_started", (data) => {
+        console.log("Game started, redirecting to:", data.redirect_url);
+        window.location.href = data.redirect_url; // Redirect the user to the game page
+        window.location.reload(); // Refresh the page
+    });
 </script>
 
 {% endblock %}

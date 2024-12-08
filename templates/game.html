@@ -212,6 +212,7 @@
             </div>
         </div>
     </div>
+    
     <!-- Cant use external js file due to needing the jinja variables -->
     <script>
         // Initialize Socket.IO connection
@@ -254,6 +255,52 @@
         });
 
         // Listen for market updates (bids and asks)
+        socket.on("market_update", (data) => {
+            const { bids, asks } = data;
+
+            // Update the bids table
+            const bidsTableBody = document.querySelector("#bids-table");
+            bidsTableBody.innerHTML = ""; // Clear existing rows
+            bids.forEach((bid) => {
+                const newRow = `
+                    <tr>
+                        <td class="text-center text-success">${bid.price}</td>
+                        <td class="text-center">${bid.quantity}</td>
+                        <td class="text-center">
+                            <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST">
+                                <input type="hidden" name="type" value="sell">
+                                <input type="hidden" name="price" value="${bid.price}">
+                                <input type="hidden" name="quantity" value="${bid.quantity}">
+                                <button type="submit" class="btn btn-success btn-xs">Sell</button>
+                            </form>
+                        </td>
+                    </tr>
+                `;
+                bidsTableBody.insertAdjacentHTML("beforeend", newRow); // Add updated bids
+            });
+
+            // Update the asks table
+            const asksTableBody = document.querySelector("#asks-table");
+            asksTableBody.innerHTML = ""; // Clear existing rows
+            asks.forEach((ask) => {
+                const newRow = `
+                    <tr>
+                        <td class="text-center">${ask.quantity}</td>
+                        <td class="text-center text-danger">${ask.price}</td>
+                        <td class="text-center">
+                            <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST">
+                                <input type="hidden" name="type" value="buy">
+                                <input type="hidden" name="price" value="${ask.price}">
+                                <input type="hidden" name="quantity" value="${ask.quantity}">
+                                <button type="submit" class="btn btn-success btn-xs">Buy</button>
+                            </form>
+                        </td>
+                    </tr>
+                `;
+                asksTableBody.insertAdjacentHTML("beforeend", newRow); // Add updated asks
+            });
+        });
+
         socket.on("market_update", (data) => {
             const {order_type, price, quantity} = data;
             const lobbyActionUrl = "{{ url_for('player_trade', lobby_id=lobby.id) }}";

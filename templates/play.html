@@ -69,5 +69,40 @@
         </div>
     </div>
 
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+
+        // Get the current page ID and username from Flask
+        const pageId = window.location.pathname;
+        const username = "{{ session.get('username') }}";
+
+        // Emit join_room_event when the page loads
+        socket.emit("join_room_event", { lobby_id: pageId, username });
+        console.log(`Client is attempting to join play page`);
+
+        // Emit leave_room_event when the page unloads
+        window.addEventListener("beforeunload", () => {
+            socket.emit("leave_room_event", { lobby_id: pageId, username });
+        });
+
+        socket.on('connect', () => {
+            console.log("SocketIO Connected");
+        });
+
+        socket.on('disconnect', () => {
+            console.log("SocketIO Disconnected");
+        });
+
+        socket.on("force_refresh", () => {
+            console.log("Received force_refresh event. Refreshing the page after 1/4 second");
+
+            setTimeout(() => {
+                window.location.reload(); // Refresh the page after 250ms
+            }, 250);
+        });
+
+    </script>
+
 </div>
 {% endblock %}

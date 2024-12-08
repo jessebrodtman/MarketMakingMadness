@@ -133,6 +133,9 @@ def add_bot_to_lobby(lobby_id):
     db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)", game_id=lobby_id, user_id=bot_id, username=bot_name)
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
+
+    # Update for other players
+    socketio.emit("force_refresh", to=lobby_id)
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
 
 # @app.route("/bot_action/<lobby_id>", methods=["POST"])
@@ -172,10 +175,20 @@ def bot_action(lobby_id):
                         """, game_id=lobby_id, user_id=bot.bot_id, price=price, quantity=order_quantity, order_type=order_type)
                         
                         # Emit real-time market update
+                        # Get market data
+                        asks = db.execute("""
+                            SELECT price, quantity FROM orders
+                            WHERE game_id = :game_id AND order_type = 'ask'
+                            ORDER BY price ASC, created_at ASC
+                        """, game_id=lobby_id)
+                        bids = db.execute("""
+                            SELECT price, quantity FROM orders
+                            WHERE game_id = :game_id AND order_type = 'bid'
+                            ORDER BY price DESC, created_at ASC
+                        """, game_id=lobby_id)
                         socketio.emit('market_update', {
-                            'order_type': order_type,
-                            'price': price,
-                            'quantity': order_quantity
+                            'bids': bids,
+                            'asks': asks,
                         }, room=lobby_id)
                         print(f"New order emitted for bot {bot.bot_id} in lobby {lobby_id}")
 
@@ -617,6 +630,7 @@ def create_lobby():
 
         # Notify via SocketIO
         socketio.emit("lobby_update", new_lobby)
+        socketio.emit("force_refresh", room="/play")
 
         # Redirect to the lobby page
         return redirect(url_for("join_lobby", lobby_id=lobby_id))
@@ -634,10 +648,12 @@ def join_lobby(lobby_id):
     player_name = session.get("username")
 
     # Check if the user is already in a lobby
+    print("checking if in lobby")
     current_lobby_id = None
     for lobby in lobbies:
         for player in lobby["players"]:
             if player["name"] == player_name:
+                print("found player in lobby")
                 current_lobby_id = lobby["id"]
                 break
 
@@ -647,38 +663,50 @@ def join_lobby(lobby_id):
         return redirect(url_for("play"))
 
     # Find the lobby
+    print("finding lobby")
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
 
     # Check if the user is already in the lobby
+    print("checking if user is in lobby")
     existing_player = next((p for p in lobby["players"] if p["name"] == player_name), None)
     if existing_player:
+        print("user is in lobby")
         # Update their last active timestamp
         existing_player["last_active"] = datetime.now()
         flash("Welcome back! You have re-entered the lobby.", "success")
+
+        # Check if game has started
+        if lobby["status"] == "in_progress":
+            return redirect(url_for("game", lobby_id=lobby_id))
     else:
+        print("checking if lobby is full")
         # Prevent joining if the lobby is full
         if len(lobby["players"]) >= int(lobby["max_players"]):
             flash("Lobby is full", "danger")
             return redirect(url_for("play"))
         
+        print("checking if game has started")
         # Prevent joining if the game has already started
         if lobby["status"] == "in_progress":
             flash("Game has already started", "danger")
             return redirect(url_for("play"))
 
+        print("adding player to lobby")
         # Add the player to the lobby
         lobby["players"].append({"name": player_name, "ready": False, "is_bot": False, "last_active": datetime.now(), "id": str(session["user_id"])})
         db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)", game_id=lobby_id, user_id=str(session["user_id"]), username=session.get("username"))
         lobby["current_players"] += 1
 
+        print("emitting event")
         # Notify the lobby of the updated players list
-        socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
+        socketio.emit("force_refresh", to=lobby_id)
 
-        flash("You have joined the lobby", "success")
+        #flash("You have joined the lobby", "success")
 
+    print("rendering lobby")
     return render_template("lobby.html", lobby=lobby)
 
 @socketio.on("join_room_event")
@@ -712,7 +740,7 @@ def toggle_ready(lobby_id):
             if player:
                 # Update user's ready status
                 player['ready'] = not player['ready']
-                socketio.emit('player_ready', {'player_name': player_name, 'lobby_id': lobby_id})
+                socketio.emit('force_refresh', to=lobby_id)
             return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
 # Lobby and Game Logic Helper Functions
@@ -774,6 +802,22 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             socketio.emit("trade_update", 
                 {'price': ask['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': user_id, 'seller_name': seller_name, 'seller_id': ask["user_id"],'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }, room=game_id)
+            # Emit real-time market update
+            # Get market data
+            asks = db.execute("""
+                SELECT price, quantity FROM orders
+                WHERE game_id = :game_id AND order_type = 'ask'
+                ORDER BY price ASC, created_at ASC
+            """, game_id=game_id)
+            bids = db.execute("""
+                SELECT price, quantity FROM orders
+                WHERE game_id = :game_id AND order_type = 'bid'
+                ORDER BY price DESC, created_at ASC
+            """, game_id=game_id)
+            socketio.emit('market_update', {
+                'bids': bids,
+                'asks': asks,
+            }, room=game_id)
         else:
             flash("No matching ask found", "danger")
 
@@ -818,6 +862,22 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             socketio.emit("trade_update", 
                 {'price': bid['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': bid["user_id"], 'seller_name': seller_name, 'seller_id': user_id, 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }, room=game_id)
+            # Emit real-time market update
+            # Get market data
+            asks = db.execute("""
+                SELECT price, quantity FROM orders
+                WHERE game_id = :game_id AND order_type = 'ask'
+                ORDER BY price ASC, created_at ASC
+            """, game_id=game_id)
+            bids = db.execute("""
+                SELECT price, quantity FROM orders
+                WHERE game_id = :game_id AND order_type = 'bid'
+                ORDER BY price DESC, created_at ASC
+            """, game_id=game_id)
+            socketio.emit('market_update', {
+                'bids': bids,
+                'asks': asks,
+            }, room=game_id)
         else:
             flash("No matching bid found", "danger")
 
@@ -862,10 +922,20 @@ def set_order(lobby_id):
     """, game_id=lobby_id, user_id=user_id, type=order_type, price=order_price, quantity=order_quantity)
 
     # Emit real-time market update
+    # Get market data
+    asks = db.execute("""
+        SELECT price, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'ask'
+        ORDER BY price ASC, created_at ASC
+    """, game_id=lobby_id)
+    bids = db.execute("""
+        SELECT price, quantity FROM orders
+        WHERE game_id = :game_id AND order_type = 'bid'
+        ORDER BY price DESC, created_at ASC
+    """, game_id=lobby_id)
     socketio.emit('market_update', {
-        'order_type': order_type,
-        'price': order_price,
-        'quantity': order_quantity
+        'bids': bids,
+        'asks': asks,
     }, room=lobby_id)
 
     flash(f"Your {order_type} order has been placed.", "success")
@@ -1031,29 +1101,35 @@ def leave_lobby(lobby_id):
     """
     player_name = session.get("username")
 
+    print("finding lobby")
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
 
+    print("removing player from lobby")
     # Remove the player from the lobby
     lobby["players"] = [player for player in lobby["players"] if player["name"] != player_name]
     lobby["current_players"] = len(lobby["players"])
 
     # Notify the lobby of the updated players list
-    socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
+    #socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
 
+    print("checking if lobby is empty")
     # Check if the lobby is now empty
     if lobby["current_players"] == 0:
         # Automatically clean up the lobby
         end_game(lobby_id)  # Call the end_game function directly
+        socketio.emit("force_refresh", to="/play")
     # Check if the lobby now only contains bots
     elif all(player.get("is_bot", False) for player in lobby["players"]):
         print(f"Lobby {lobby['id']} has only bots. Ending game.")
         cleanup_all(lobby["id"])
+        socketio.emit("force_refresh", to="/play")
 
-    flash("You have left the lobby", "success")
+    #flash("You have left the lobby", "success")
+    socketio.emit("force_refresh", to=lobby_id)
     return redirect(url_for("play"))
 
 @socketio.on("leave_room_event")
@@ -1103,9 +1179,6 @@ def start_game(lobby_id):
     # Update the lobby status to "in_progress"
     lobby["status"] = "in_progress"
 
-    # Notify players via SocketIO
-    socketio.emit("game_start", lobby_id)
-
     # Start the timer in a new thread
     print(f"Starting timer for lobby {lobby_id}")
     redirect_url = url_for("play")
@@ -1119,7 +1192,12 @@ def start_game(lobby_id):
 
     flash("Game has started", "success")
     try:
-         return redirect(url_for("game", lobby_id=lobby_id))
+        # Notify players via SocketIO
+        game_url = url_for("game", lobby_id=lobby_id)
+        socketio.emit("game_start", {"redirect_url": game_url}, to = lobby_id)
+        socketio.emit("force_refresh", to=lobby_id)
+        print("game start emitted")
+        return redirect(url_for("game", lobby_id=lobby_id))
     except Exception as e:
         print(f"Error in start_game: {e}")
         return redirect(url_for("play"))
