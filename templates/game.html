@@ -356,9 +356,9 @@
                 userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) + parseInt(quantity);
                 const newCash = parseInt(userPortfolioCash.innerText) - (parseInt(price) * parseInt(quantity));
                 if(newCash >= 0){
-                    userPortfolioCash.innerText = '$${newCash}';
+                    userPortfolioCash.innerText = `$${newCash}`;
                 } else {
-                    userPortfolioCash.innerText = '-$$abs(newCash)';
+                    userPortfolioCash.innerText = `-$${abs(newCash)}`;
                 }
             }
             if (seller_name === username) {

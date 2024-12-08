@@ -55,13 +55,16 @@ def after_request(response):
     response.headers["Pragma"] = "no-cache"
     return response
 
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=True)
+    socketio.run(app)
 
-# Bot Helper Functions and Routes
+# More Bot Helper Functions and Routes that cant be in bots.py 
 def get_current_market_state(lobby_id):
     """
     Retrieve the current market state for a specific lobby.
     """
-    # Best bid and ask
+    # Get the best bid and ask
     best_bid = db.execute("""
         SELECT price, user_id, quantity FROM orders
         WHERE game_id = :game_id AND order_type = 'bid'
@@ -74,7 +77,7 @@ def get_current_market_state(lobby_id):
         ORDER BY price ASC, created_at ASC LIMIT 1
     """, game_id=lobby_id)
 
-    # Full market depth
+    # Get the full market depth
     all_bids = db.execute("""
         SELECT price, user_id, quantity FROM orders
         WHERE game_id = :game_id AND order_type = 'bid'
@@ -87,7 +90,7 @@ def get_current_market_state(lobby_id):
         ORDER BY price ASC, created_at ASC
     """, game_id=lobby_id)
 
-    # Recent trades
+    # Find recent trades
     recent_trades = db.execute("""
         SELECT buyer_id, seller_id, price, quantity, created_at FROM transactions
         WHERE game_id = :game_id
@@ -106,8 +109,9 @@ def get_current_market_state(lobby_id):
 @login_required
 def add_bot_to_lobby(lobby_id):
     """
-    Add a bot to a lobby, ensuring proper handling of player counts and status.
+    Add a bot to a lobby
     """
+    # Get bots name and level
     bot_name = request.form.get("bot_name", "DefaultBot")
     bot_level = request.form.get("bot_level", "medium")
     bot_name = f"{bot_name} ({bot_level})"
@@ -132,10 +136,15 @@ def add_bot_to_lobby(lobby_id):
     flash(f"Bot '{bot_name}' added to the lobby", "success")
     return redirect(url_for("join_lobby", lobby_id=lobby_id))
 
-
-
 # @app.route("/bot_action/<lobby_id>", methods=["POST"])
 def bot_action(lobby_id):
+    """
+    Perform trading actions for all bots in a lobby
+    """
+
+    # Get the bots in this lobby
+    bots = get_bots_in_lobby(lobby_id) 
+    
     while True:
         with bot_lock:
             print(f"Bot action running for lobby {lobby_id}")
@@ -144,15 +153,15 @@ def bot_action(lobby_id):
             if not lobby or lobby["status"] != "in_progress":
                 print(f"Stopping bot action for lobby {lobby_id} (lobby not found or game not in progress)")
                 break
-
-            bots = get_bots_in_lobby(lobby_id)
-
+            
+            # Update market state for each bot
             for bot in bots:
                 market_state = get_current_market_state(lobby_id)
                 bot.update_market_state(market_state)
 
                 # Decide whether to post new bid/ask prices
                 if bot.should_update_quotes():
+                    # Get the new bid and ask prices and post orders
                     bid, ask = bot.generate_bid_ask()
                     for price, order_type in [(bid, "bid"), (ask, "ask")]:
                         order_quantity = random.randint(1, 10)
@@ -171,18 +180,18 @@ def bot_action(lobby_id):
                         }, room=lobby_id)
                         print(f"New order emitted for bot {bot.bot_id} in lobby {lobby_id}")
 
-                # Decide to trade
+                # Decide to trade or not
                 trade = bot.decide_to_trade()
                 if trade:
                     execute_trade(lobby_id, bot.bot_id, trade["type"], trade["price"], random.randint(1, 10))
             
-        time.sleep(5) # Sleep for 5 seconds between bot actions, change if needed
+        time.sleep(5) # Sleep for 5 seconds between bot actions
 
 @app.route("/start_bot_trading/<lobby_id>", methods=["POST"])
 @login_required
 def start_bot_trading(lobby_id):
     """
-    Start automatic trading cycles for all bots in the lobby.
+    Start automatic trading cycles for all bots in the lobby
     """
     # Find the lobby
     print("finding lobby for bots")
@@ -216,10 +225,11 @@ def index():
         return redirect("/login")
 
     try:
-        # Fetch user data if logged in
+        # Get user data if logged in
         user_id = session["user_id"]
-        print(f"User ID from session: {user_id}")
+        print(f"User ID from session: {user_id}");
 
+        # Get user stats
         stats = db.execute("""
             SELECT 
                 IFNULL(SUM(pnl), 0) AS total_pnl,
@@ -231,8 +241,6 @@ def index():
 
         username = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]["username"]
         print(f"Username fetched: {username}")
-
-
 
         visitors_online = 95774  # Placeholder for visitor count
         return render_template(
@@ -249,22 +257,29 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    """
+    Log in the user and redirect to the homepage
+    """
     session.clear()
 
     if request.method == "POST":
+        # Get username and password
         username = request.form.get("username")
         password = request.form.get("password")
 
+        # Validate username and password
         if not username or not password:
             flash("Username and password are required", "danger")
             return render_template("login.html")
 
+        # Check if the user exists and the password is correct
         rows = db.execute("SELECT * FROM users WHERE username = :username", username=username)
 
         if len(rows) != 1 or not check_password_hash(rows[0]["password"], password):
             flash("Invalid username or password", "danger")
             return render_template("login.html")
 
+        # Log user in
         session["user_id"] = rows[0]["id"]
         session["username"] = rows[0]["username"]
         flash(f"Welcome back, {rows[0]['username']}!", "success")
@@ -276,10 +291,12 @@ def login():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
+        # Get username and password
         username = request.form.get("username")
         password = request.form.get("password")
         confirmation = request.form.get("confirmation")
 
+        # Validate username and password
         if not username or not password or not confirmation:
             flash("All fields are required", "danger")
             return render_template("register.html")
@@ -290,6 +307,7 @@ def register():
 
         hashed_password = generate_password_hash(password)
 
+        # Insert the new user into the database if the username is unique
         try:
             result = db.execute(
                 "INSERT INTO users (username, password) VALUES (:username, :password)",
@@ -309,6 +327,9 @@ def register():
 @app.route("/play", methods=["GET", "POST"])
 @login_required
 def play():
+    """
+    Display the play page with lobbies and allow users to create or join a lobby
+    """
     username = session.get("username")
     user_lobby_id = None
 
@@ -323,19 +344,14 @@ def play():
 
 
 @app.route("/history")
+@login_required
 def history():
     """
-    Display the user's game history and statistics.
-    Redirect unauthenticated users to the login page.
+    Display the user's game history and statistics
     """
-    # Ensure user is logged in
-    if "user_id" not in session:
-        flash("Please log in to view your game history", "warning")
-        return redirect("/login")
-
     user_id = session["user_id"]
 
-    # Query total statistics
+    # Find users statistics
     stats = db.execute("""
         SELECT 
             IFNULL(SUM(pnl), 0) AS total_pnl,
@@ -350,7 +366,7 @@ def history():
     total_wins = db.execute("SELECT COUNT(id) FROM game_results WHERE user_id = :user_id AND pnl > 0", user_id=user_id)[0]["COUNT(id)"]
     winning_percentage = (total_wins / total_games * 100) if total_games > 0 else 0
 
-    # Fetch detailed game history
+    # Get detailed game history
     games = db.execute("""
         SELECT scenario, pnl, accuracy, time_taken
         FROM game_results
@@ -370,10 +386,9 @@ def history():
 
 def countdown_timer(lobby_id, redirect_url):
     """
-    Background function that handles the countdown timer for the lobby.
+    Handle the countdown timer for the lobby
     """
     while True:
-        #print("starting timer")
         # Find the lobby
         lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
@@ -382,39 +397,29 @@ def countdown_timer(lobby_id, redirect_url):
 
         # Countdown logic
         if lobby["game_length"] > 0:
-            #print("decreasing timer")
             time.sleep(1)  # Wait for 1 second
             lobby["game_length"] -= 1
             # Emit timer update to all clients in the lobby
-            #print("emitting timer update")
             socketio.emit('timer_update', {'game_length': lobby["game_length"]}, room=lobby_id)
-            #print("emitted timer update")
         else:
             # Timer reaches zero
-            #print("ending timer")
             socketio.emit('timer_ended', {'message': 'Time is up! Game over!', 'redirect_url': redirect_url}, room=lobby_id)
-            #print("emitted timer ended")
 
             # End the game
             end_game_helper(lobby_id)
             break
-        #print(f"time remaining: {lobby['game_length']}")
 
 @app.route("/settings", methods=["GET", "POST"])
+@login_required
 def settings():
     """
-    Handle account settings. Allow users to update their username or password.
-    Redirect unauthenticated users to the login page.
+    Handle account settings
+    Allow users to update their username or password
     """
-    # Ensure user is logged in
-    if "user_id" not in session:
-        flash("Please log in to access account settings", "warning")
-        return redirect("/login")
-
     user_id = session["user_id"]
 
     if request.method == "POST":
-        # Fetch form data
+        # Get form data
         new_username = request.form.get("username")
         new_password = request.form.get("new_password")
         confirm_password = request.form.get("confirm_password")
@@ -457,71 +462,57 @@ def settings():
 @app.route("/logout")
 def logout():
     """
-    Log out the current user and redirect to the login page.
+    Log out the current user and redirect to the login page
     """
     session.clear()
     flash("You have been logged out successfully", "info")
     return redirect("/login")
 
-
 @app.errorhandler(404)
 def not_found_error(e):
     """
-    Handle 404 Not Found errors.
+    Handle 404 Not Found errors
     """
     return render_template("error.html", error_message="The page you are looking for does not exist."), 404
 
 @app.errorhandler(500)
 def internal_error(e):
     """
-    Handle 500 Internal Server errors.
+    Handle 500 Internal Server errors
     """
     return render_template("error.html", error_message="An internal server error occurred. Please try again later."), 500
 
 @app.errorhandler(Exception)
 def handle_exception(e):
     """
-    Handle all other exceptions with a generic error message.
+    Handle all other exceptions with a generic error message
     """
     return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
 
 # Helper Functions for Databases and Lobbies
 def is_lobby_full(lobby):
     """
-    Check if a lobby is full, considering both humans and bots.
-
-    Args:
-        lobby (dict): The lobby object.
-
-    Returns:
-        bool: True if the lobby is full, False otherwise.
+    Check if a lobby is full, considering both players and bots
     """
     return len(lobby["players"]) >= int(lobby["max_players"])
 
 def create_game(lobby_id, scenario, lobby_name, game_length):
     """
-    Create a new game in the `games` table.
+    Create a new game in the games database
     """
     db.execute("""
         INSERT INTO games (id, scenario, lobby_name, status, game_length)
         VALUES (:id, :scenario, :lobby_name, :status, :game_length)
     """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting", game_length=game_length)
 
-
 def finalize_game_results(game_id, lobby):
     """
-    Populate the `game_results` table by aggregating data from the `transactions` table
-    and calculating P&L based on the fair market value.
-
-    Args:
-        game_id (str): The ID of the game to finalize results for.
-        lobby (dict): The lobby object containing information about the game's state.
+    Populate the game_results table with the final results of the game
     """
-    # Retrieve the scenario and fair value from the `lobby` dictionary
+    # Get the scenario and fair value from the lobby dictionary
     print("retrieve scenario and fair value")
     scenario = lobby.get("market_question")
     lobby_id = lobby.get("id")
-
     fair_value = get_fair_value(lobby_id)
 
     # Aggregate performance data for each user based on the fair market value
@@ -548,7 +539,7 @@ def finalize_game_results(game_id, lobby):
 
 def mark_game_as_completed(game_id):
     """
-    Mark the game as completed.
+    Mark the game as completed
     """
     db.execute("""
         UPDATE games
@@ -560,7 +551,7 @@ def mark_game_as_completed(game_id):
 @login_required
 def create_lobby():
     """
-    Create a new game lobby, assign a random market, and add it to the list of lobbies.
+    Create a new game lobby, assign a random market, and add it to the list of lobbies
     """
     player_name = session.get("username")
 
@@ -595,7 +586,7 @@ def create_lobby():
         market = get_random_market()
         markets[lobby_id] = market  # Store the market in the global markets dictionary
 
-        # Add to `games` table
+        # Add to games table
         create_game(lobby_id, market["question"], lobby_name, game_length)
 
         # Create the lobby object
@@ -606,7 +597,7 @@ def create_lobby():
             "current_players": 0,
             "status": "waiting",
             "players": [],
-            "market_question": market["question"],  # Add the market question to the lobby object
+            "market_question": market["question"], 
             "game_length": game_length,
         }
         lobbies.append(new_lobby)
@@ -625,7 +616,7 @@ def create_lobby():
 @login_required
 def join_lobby(lobby_id):
     """
-    Handle a user joining a lobby.
+    Let a user join a lobby
     """
     player_name = session.get("username")
 
@@ -680,10 +671,7 @@ def join_lobby(lobby_id):
 @socketio.on("join_room_event")
 def join_room_event(data):
     """
-    Handle a user joining a Socket.IO room for real-time updates.
-
-    Args:
-        data (dict): Contains `lobby_id` and the player's `username`.
+    Handle a user joining a Socket.IO room for real-time updates
     """
     lobby_id = data.get("lobby_id")
     username = session.get("username")
@@ -699,34 +687,27 @@ def join_room_event(data):
     # Notify others in the room
     socketio.emit("player_joined", {"player": username}, to=lobby_id)
 
-
 @app.route("/toggle_ready/<lobby_id>", methods=["GET", "POST"])
 @login_required
 def toggle_ready(lobby_id):
+    # Find lobby
     for lobby in lobbies:
         if lobby['id'] == lobby_id:
+            # Find user
             player_name = session.get('username')
             player = next((player for player in lobby['players'] if player['name'] == player_name), None)
             if player:
+                # Update user's ready status
                 player['ready'] = not player['ready']
                 socketio.emit('player_ready', {'player_name': player_name, 'lobby_id': lobby_id})
             return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
-if __name__ == "__main__":
-    app.run(debug=True, use_reloader=True)
-    socketio.run(app)
-
-# Lobby and Game Logic Helper Function
+# Lobby and Game Logic Helper Functions
 def get_fair_value(lobby_id):
     """
-    Retrieve the fair value of the market for a given lobby.
-
-    Args:
-        lobby_id (str): The ID of the lobby.
-
-    Returns:
-        float: The fair value of the market.
+    Retrieve the fair value of the market for a given lobby
     """
+    # Find market and return fair value
     market = markets.get(lobby_id)
     if market:
         return market['fair_value']
@@ -734,14 +715,7 @@ def get_fair_value(lobby_id):
 
 def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
     """
-    Execute a trade for a given user (bot or human) and update the market in real-time.
-
-    Args:
-        game_id (int): The ID of the game/lobby.
-        user_id (str): The unique ID of the user (bot or human).
-        trade_type (str): "buy" or "sell".
-        trade_price (float): The price at which the trade is executed.
-        trade_quantity (float): The quantity of the trade.
+    Execute a trade for a given user and update the market in real-time
     """
     print(f"executing trade for {game_id}, {user_id}, {trade_type}, {trade_price}, {trade_quantity}")
     if trade_type == "buy":
@@ -753,6 +727,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
         """, game_id=game_id, trade_price=trade_price)
         print("best ask: ", best_ask)
 
+        # If a best ask exists
         if best_ask:
             ask = best_ask[0]
             print("ask: ", ask)
@@ -798,6 +773,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
         """, game_id=game_id, trade_price=trade_price)
         print("best bid: ", best_bid)
 
+        # If a best bid exists
         if best_bid:
             bid = best_bid[0]
             quantity_to_trade = min(bid["quantity"], trade_quantity)
@@ -836,14 +812,15 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
 @login_required
 def player_trade(lobby_id):
     """
-    Handle a player's trade in the market.
+    Handle a player's trade in the market
     """
+    # Get trade information
     user_id = session["user_id"]
     trade_type = request.form.get("type")  # "buy" or "sell"
     trade_price = float(request.form.get("price"))
     trade_quantity = float(request.form.get("quantity"))
 
-    # Execute the trade using the generalized function
+    # Execute the trade using the main trading function
     execute_trade(lobby_id, user_id, trade_type, trade_price, trade_quantity)
 
     # Emit real-time player action update
@@ -855,8 +832,9 @@ def player_trade(lobby_id):
 @login_required
 def set_order(lobby_id):
     """
-    Handle a player setting a bid or ask in the market.
+    Handle a player setting a bid or ask in the market
     """
+    # Get order information
     user_id = session["user_id"]
     order_type = request.form.get("type")  # "bid" or "ask"
     order_price = float(request.form.get("price"))
@@ -884,10 +862,7 @@ def set_order(lobby_id):
 @login_required
 def game(lobby_id):
     """
-    Render the game page for a specific lobby.
-
-    Args:
-        lobby_id (str): The ID of the lobby for which the game is displayed.
+    Render the game page for a specific lobby
     """
     # Find the lobby
     lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
@@ -930,7 +905,7 @@ def game(lobby_id):
     """, game_id=lobby_id)
     print("trade history:", trade_history)
 
-    # Make trades a portfolio
+    # Make trades into a portfolio
     user_portfolio = {"contracts": 0, "cash": 0}
     for trade in trade_history:
         if trade["buyer"] == session["username"]:
@@ -956,10 +931,7 @@ def game(lobby_id):
 # Lobby / Game Cleanup Functions
 def cleanup_lobby(lobby_id):
     """
-    Remove the lobby and associated data from memory.
-
-    Args:
-        lobby_id (str): The ID of the lobby to clean up.
+    Remove the lobby and associated data from memory
     """
     global lobbies, BOTS, markets
 
@@ -976,11 +948,7 @@ def cleanup_lobby(lobby_id):
 
 def cleanup_game_data(game_id, lobby):
     """
-    Perform database cleanup after a game ends.
-
-    Args:
-        game_id (int): The ID of the game to clean up.
-        lobby (dict): The lobby object containing information about the game's state.
+    Perform database cleanup
     """
     # Check the lobby status
     if lobby["status"] == "waiting":
@@ -1014,10 +982,7 @@ def cleanup_game_data(game_id, lobby):
 
 def cleanup_all(lobby_id):
     """
-    Perform a full cleanup for a given lobby, including both memory and database data.
-
-    Args:
-        lobby_id (str): The ID of the lobby to clean up.
+    Perform a full cleanup for a given lobby
     """
     try:
         # Find the lobby in the global `lobbies` list
@@ -1049,10 +1014,7 @@ def cleanup_all(lobby_id):
 @login_required
 def leave_lobby(lobby_id):
     """
-    Handle a user leaving a lobby.
-
-    Args:
-        lobby_id (str): The ID of the lobby the user is leaving.
+    Handle a user leaving a lobby
     """
     player_name = session.get("username")
 
@@ -1084,10 +1046,7 @@ def leave_lobby(lobby_id):
 @socketio.on("leave_room_event")
 def leave_room_event(data):
     """
-    Handle a user leaving a Socket.IO room for real-time updates.
-
-    Args:
-        data (dict): Contains `lobby_id` and the player's `username`.
+    Handle a user leaving a Socket.IO room for real-time updates
     """
     lobby_id = data.get("lobby_id")
     username = session.get("username")
@@ -1107,10 +1066,7 @@ def leave_room_event(data):
 @login_required
 def start_game(lobby_id):
     """
-    Start the game for a given lobby.
-
-    Args:
-        lobby_id (str): The ID of the lobby to start the game for.
+    Start the game for a given lobby
     """
     print(f"starting game for lobby {lobby_id}")
 
@@ -1157,11 +1113,7 @@ def start_game(lobby_id):
 
 def end_game_helper(lobby_id):
     """
-    Helper function to handle game and lobby cleanup when a game ends.
-    This function does not use any Flask request-specific objects, so it can be called from a background thread.
-
-    Args:
-        lobby_id (str): The ID of the lobby to clean up.
+    Handle game and lobby cleanup when a game ends
     """
     try:
         # Find the lobby
@@ -1225,10 +1177,7 @@ def end_game_helper(lobby_id):
 @login_required
 def end_game(lobby_id):
     """
-    Handle game and lobby cleanup when a game ends.
-
-    Args:
-        lobby_id (str): The ID of the lobby to clean up.
+    Handle game and lobby cleanup when a game ends
     """
     try:
         end_game_helper(lobby_id)
@@ -1238,71 +1187,3 @@ def end_game(lobby_id):
         print(f"Error in end_game: {e}")
 
     return redirect(url_for("play"))
-
-# Handling Inactive Users in a Lobby (Ones that leave, etc.). If you can get this to work that would be cool, but rn idk how to make it work.
-'''
-def remove_inactive_users():
-    """
-    Periodically remove inactive users from all lobbies and clean up empty or bot-only lobbies.
-    """
-    # Update global lobbies list with active lobbies
-    global lobbies
-    lobbies = active_lobbies
-
-    now = datetime.now()
-    timeout = timedelta(seconds=30)  # Timeout duration for inactivity
-    active_lobbies = []
-
-    for lobby in lobbies:
-        active_players = []
-        for player in lobby["players"]:
-            # Check if the player is a human and inactive
-            if not player["is_bot"] and "last_active" in player and now - player["last_active"] > timeout:
-                print(f"Removing inactive user: {player['name']} from lobby {lobby['id']}")
-            else:
-                # Keep the player (either active or a bot)
-                active_players.append(player)
-
-        # Update the lobby's player list
-        lobby["players"] = active_players
-
-        # Check if there are still humans in the lobby
-        has_human_players = any(not player["is_bot"] for player in lobby["players"])
-
-        # If the lobby contains only bots, initiate cleanup
-        if has_human_players:
-            active_lobbies.append(lobby)
-        else:
-            print(f"Cleaning up lobby with only bots: {lobby['id']}")
-            cleanup_all(lobby["id"])
-
-    
-@app.route("/heartbeat/<lobby_id>", methods=["POST"])
-@login_required
-def heartbeat(lobby_id):
-    """
-    Handle heartbeat requests from the client to confirm their presence in the lobby.
-    """
-    username = session.get("username")
-    if not username:
-        return {"status": "error", "message": "User not logged in"}, 401
-
-    # Update user's last active timestamp in the lobby
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
-    if not lobby:
-        return {"status": "error", "message": "Lobby not found"}, 404
-
-    # Find the user in the lobby and update their last active time
-    for player in lobby["players"]:
-        if player["name"] == username:
-            player["last_active"] = datetime.now()
-
-    # Perform cleanup for inactive users
-    remove_inactive_users()
-
-    return {"status": "success", "message": "Heartbeat received"}, 200
-
-
-
-
-'''
