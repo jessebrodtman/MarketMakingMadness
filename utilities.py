@@ -373,6 +373,7 @@ def cleanup_lobby(lobby_id):
 
     # Remove lobby from lobbies array
     lobbies = [lobby for lobby in lobbies if lobby['id'] != lobby_id]
+    print(lobbies)
 
     # Remove bots associated with the lobby
     BOTS = {bot_id: bot for bot_id, bot in BOTS.items() if bot.lobby_id != lobby_id}
