@@ -97,7 +97,7 @@ class Bot:
 
     def generate_bid_ask(self):
         """
-        Generate a bid/ask price based on the bot level, current market state, and market depth
+        Generate a bid/ask price based on the bot level, current market state, and market depth.
         """
         # Generate random noise based on bot level
         level_noise = {
@@ -107,6 +107,15 @@ class Bot:
             "Jane Street": random.uniform(0.5, 1),
         }
         noise = level_noise.get(self.level, random.uniform(2, 5))
+
+        # Calculate a margin based on the fair value
+        margin_multiplier = {
+            "easy": 0.1,
+            "medium": 0.05,
+            "hard": 0.02,
+            "Jane Street": 0.01,
+        }
+        margin = margin_multiplier.get(self.level, 0.05) * self.fair_value
 
         # Weigh fair value vs. market state based on maturity
         maturity_factor = min(self.market_maturity / 20, 1)  # Gradually increases to 1
@@ -126,15 +135,29 @@ class Bot:
         avg_bid_depth = sum(bid["quantity"] for bid in all_bids) / len(all_bids) if all_bids else 1
         avg_ask_depth = sum(ask["quantity"] for ask in all_asks) / len(all_asks) if all_asks else 1
 
+        # Adjust behavior if the bot holds the top bid/ask
+        reluctant_to_tighten_spread = False
+        if self.current_bid and best_bid and self.current_bid >= best_bid_price:
+            reluctant_to_tighten_spread = True
+
+        if self.current_ask and best_ask and self.current_ask <= best_ask_price:
+            reluctant_to_tighten_spread = True
+
+        # Generate bid/ask prices
         bid_price = (
             weight_on_market * (best_bid_price + random.uniform(-1, 0.5)) +
-            weight_on_fair_value * (self.fair_value - noise)
+            weight_on_fair_value * (self.fair_value - margin - noise)
         ) + random.uniform(-avg_bid_depth / 10, avg_bid_depth / 10)
 
         ask_price = (
             weight_on_market * (best_ask_price + random.uniform(0.5, 1)) +
-            weight_on_fair_value * (self.fair_value + noise)
+            weight_on_fair_value * (self.fair_value + margin + noise)
         ) + random.uniform(-avg_ask_depth / 10, avg_ask_depth / 10)
+
+        # Adjust if the bot is reluctant to tighten the spread
+        if reluctant_to_tighten_spread:
+            bid_price -= random.uniform(0, noise / 2)
+            ask_price += random.uniform(0, noise / 2)
 
         # Ensure valid spread
         if ask_price <= bid_price:
@@ -146,10 +169,11 @@ class Bot:
         return round(self.current_bid, 2), round(self.current_ask, 2)
 
 
+
     def decide_to_trade(self):
         """
         Decide whether the bot will execute a trade based on market conditions,
-        depth, and recent activity in the market
+        depth, and recent activity in the market.
         """
         best_ask = self.market_state.get("best_ask", None)
         best_bid = self.market_state.get("best_bid", None)
@@ -159,16 +183,26 @@ class Bot:
         trade_frequency_modifier = self._get_trade_frequency_modifier(last_trades)
 
         # Adjust based on spread and depth
-        if best_bid and best_ask:
-            spread = best_ask["price"] - best_bid["price"]
-            if spread > random.uniform(1, 5):  # Favor trading in wider spreads
-                if random.random() < trade_frequency_modifier:
-                    # Ensure the bot does not trade with its own orders
-                    if best_ask["user_id"] != self.bot_id and random.random() < 0.6:
-                        return {"type": "buy", "price": best_ask["price"]}
-                    elif best_bid["user_id"] != self.bot_id and random.random() < 0.4:
-                        return {"type": "sell", "price": best_bid["price"]}
+        spread = (best_ask["price"] - best_bid["price"]) if best_ask and best_bid else None
+        if spread and spread > random.uniform(1, 5):  # Favor trading in wider spreads
+            trade_quantity = self._calculate_trade_quantity()
+            if random.random() < trade_frequency_modifier:
+                if best_ask and random.random() < 0.6:
+                    return {"type": "buy", "price": best_ask["price"], "quantity": trade_quantity}
+                elif best_bid and random.random() < 0.4:
+                    return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
+
         return None
+
+    def _calculate_trade_quantity(self):
+        """
+        Determine the quantity for the bot's trades based on proportional likelihood.
+        """
+        # Higher probability for smaller quantities
+        quantities = [1, 2, 3, 5, 8]  # Fibonacci-like for variability
+        weights = [0.4, 0.3, 0.2, 0.07, 0.03]  # Higher weights for smaller quantities
+        return random.choices(quantities, weights=weights, k=1)[0]
+
 
     def _get_trade_frequency_modifier(self, last_trades):
         """
@@ -204,14 +238,26 @@ class Bot:
 
     def should_update_quotes(self):
         """
-        Decide whether the bot should post new bid/ask prices based on market conditions.
+        Decide whether the bot should post new bid/ask prices based on market conditions and timing.
         """
         now = datetime.now()
         time_since_last_trade = (now - self.last_trade_time).total_seconds()
 
-        # Ensure the bot makes a move every 10 seconds
-        if time_since_last_trade >= 10:
-            return True
+        # Probability-based update to reduce frequency
+        update_probability = {
+            "easy": 0.1,
+            "medium": 0.25,
+            "hard": 0.5,
+            "Jane Street": 0.7,
+        }
+        should_update = random.random() < update_probability.get(self.level, 0.25)
+
+        if not should_update:
+            return False
+
+        # Only update if sufficient time has passed since the last trade
+        if time_since_last_trade < 40:  # Increase this threshold to further slow down
+            return False
 
         # Check if the bot's current quotes are still competitive
         best_bid = self.market_state.get("best_bid", None)
@@ -223,7 +269,9 @@ class Bot:
         if self.current_ask and best_ask and self.current_ask <= best_ask["price"]:
             return False  # Current ask is still competitive
 
+        # Otherwise, allow the bot to update quotes
         return True
+
 
 
 def create_bot(bot_id, name, fair_value, lobby_id, level="medium"):
