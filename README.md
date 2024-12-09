@@ -1,7 +1,7 @@
 # Market Making Madness
 Welcome to Market Making Madness, an interactive web-based simulation designed to replicate a live trading market environment where players (and bots) can trade contracts based on fair value estimates of real-world questions. This documentation serves as a comprehensive guide to understanding, configuring, and running the project.
 
-Note: Proclife, requirements.txt, and runtime.txt are used to host the website on render
+Note: Proclife, venv, requirements.txt, and runtime.txt are used to host the website on render which is publicaly accessible but very slow due to the free tier
 Link: https://marketmakingmadness.onrender.com/login
 
 ## Overview
