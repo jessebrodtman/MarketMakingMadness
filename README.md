@@ -17,6 +17,7 @@ Market Making Madness is a multiplayer market simulation where users create or j
 Core Gameplay
 - Create or join a trading lobby.
 - Trade contracts using a live bid/ask interface.
+- Trade contracts with an interactive button that speeds up the interface.
 - Compete with other players (human and bot).
 
 Bots: Bots participate in markets at various difficulty levels:

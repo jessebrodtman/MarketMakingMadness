@@ -9,117 +9,117 @@
 {% endblock %}
 
 {% block main %}
-<div id="homepage">
+    <div id="homepage">
     <!-- Title Section -->
-    <section id="hero" class="hero-section text-center">
-        <div class="hero-overlay">
-            <h1 class="hero-title">Welcome to MarketMakingMadness</h1>
-            <p class="hero-subtitle">The ultimate market-making game where strategy meets competition.</p>
-            <a href="{{ url_for('play') }}" class="btn btn-primary">Start Game</a>
-        </div>
-    </section>
-    
+        <section id="hero" class="hero-section text-center">
+            <div class="hero-overlay">
+                <h1 class="hero-title">Welcome to MarketMakingMadness</h1>
+                <p class="hero-subtitle">The ultimate market-making game where strategy meets competition.</p>
+                <a href="{{ url_for('play') }}" class="btn btn-primary">Start Game</a>
+            </div>
+        </section>
 
-   <!-- Dashboard Section -->
-    <section id="dashboard" class="dashboard-section container py-5">
-        <h2 class="text-center mb-4">Your Dashboard</h2>
-        {% if session.get("user_id") %}
-            <div class="row g-4">
-                <!-- Total Profit/Loss Card -->
-                <div class="col-lg-4">
-                    <div class="dashboard-card bg-light p-4 rounded">
-                        <h3 class="dashboard-title">Total Profit/Loss</h3>
-                        <p class="dashboard-value text-success">{% if total_pnl >= 0 %}
-                            ${{ total_pnl | round(2) }}
-                        {% else %}
-                            -${{ total_pnl|abs | round(2) }}
-                        {% endif %}</p>
+
+    <!-- Dashboard Section -->
+        <section id="dashboard" class="dashboard-section container py-5">
+            <h2 class="text-center mb-4">Your Dashboard</h2>
+            {% if session.get("user_id") %}
+                <div class="row g-4">
+            <!-- Total Profit/Loss Card -->
+                    <div class="col-lg-4">
+                        <div class="dashboard-card bg-light p-4 rounded">
+                            <h3 class="dashboard-title">Total Profit/Loss</h3>
+                            <p class="dashboard-value text-success">{% if total_pnl >= 0 %}
+                                ${{ total_pnl | round(2) }}
+                            {% else %}
+                                -${{ total_pnl|abs | round(2) }}
+                            {% endif %}</p>
+                        </div>
+                    </div>
+            <!-- Games Played Card -->
+                    <div class="col-lg-4">
+                        <div class="dashboard-card bg-light p-4 rounded">
+                            <h3 class="dashboard-title">Welcome Back</h3>
+                            <p class="dashboard-value" style="color: black;">{{ username }}</p>
+                        </div>
+                    </div>
+            <!-- Games Played Card -->
+                    <div class="col-lg-4">
+                        <div class="dashboard-card bg-light p-4 rounded">
+                            <h3 class="dashboard-title">Games Played</h3>
+                            <p class="dashboard-value">{{ games_played }}</p>
+                        </div>
                     </div>
                 </div>
-                <!-- Games Played Card -->
-                <div class="col-lg-4">
-                    <div class="dashboard-card bg-light p-4 rounded">
-                        <h3 class="dashboard-title">Welcome Back</h3>
-                        <p class="dashboard-value" style="color: black;">{{ username }}</p>
-                    </div>
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('play') }}" class="btn btn-secondary me-3">Start a New Game</a>
+                    <a href="{{ url_for('history') }}" class="btn btn-secondary">View Game History</a>
                 </div>
-                <!-- Games Played Card -->
-                <div class="col-lg-4">
-                    <div class="dashboard-card bg-light p-4 rounded">
-                        <h3 class="dashboard-title">Games Played</h3>
-                        <p class="dashboard-value">{{ games_played }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="text-center mt-4">
-                <a href="{{ url_for('play') }}" class="btn btn-secondary me-3">Start a New Game</a>
-                <a href="{{ url_for('history') }}" class="btn btn-secondary">View Game History</a>
-            </div>
-        {% else %}
-            <p class="text-center">You must <a href="{{ url_for('login') }}" class="text-decoration-none">Login</a> or <a href="{{ url_for('register') }}" class="text-decoration-none">Sign Up</a> to access your dashboard!</p>
-        {% endif %}
-    </section>
+            {% else %}
+                <p class="text-center">You must <a href="{{ url_for('login') }}" class="text-decoration-none">Login</a> or <a href="{{ url_for('register') }}" class="text-decoration-none">Sign Up</a> to access your dashboard!</p>
+            {% endif %}
+        </section>
 
 
     <!-- How It Works Section -->
-    <section id="how-it-works" class="how-it-works-section py-5 bg-light">
-        <div class="container">
-            <h2 class="text-center mb-4">How It Works</h2>
-            <div class="row g-4">
+        <section id="how-it-works" class="how-it-works-section py-5 bg-light">
+            <div class="container">
+                <h2 class="text-center mb-4">How It Works</h2>
+                <div class="row g-4">
                 <!-- Step 1 -->
-                <div class="col-lg-4">
-                    <div class="how-it-works-card p-4 rounded bg-white shadow-sm">
-                        <h3 class="step-title">Step 1: Get a Scenario</h3>
-                        <p class="step-description">
-                            Receive a random real-world scenario like "How many streets are in Boston?"
-                        </p>
+                    <div class="col-lg-4">
+                        <div class="how-it-works-card p-4 rounded bg-white shadow-sm">
+                            <h3 class="step-title">Step 1: Get a Scenario</h3>
+                            <p class="step-description">
+                                Receive a random real-world scenario like "How many streets are in Boston?"
+                            </p>
+                        </div>
                     </div>
-                </div>
                 <!-- Step 2 -->
-                <div class="col-lg-4">
-                    <div class="how-it-works-card p-4 rounded bg-white shadow-sm">
-                        <h3 class="step-title">Step 2: Set Bid and Ask Prices</h3>
-                        <p class="step-description">
-                            Quote your bid (buy) and ask (sell) prices for the scenario based on your estimates.
-                        </p>
+                    <div class="col-lg-4">
+                        <div class="how-it-works-card p-4 rounded bg-white shadow-sm">
+                            <h3 class="step-title">Step 2: Set Bid and Ask Prices</h3>
+                            <p class="step-description">
+                                Quote your bid (buy) and ask (sell) prices for the scenario based on your estimates.
+                            </p>
+                        </div>
                     </div>
-                </div>
                 <!-- Step 3 -->
-                <div class="col-lg-4">
-                    <div class="how-it-works-card p-4 rounded bg-white shadow-sm">
-                        <h3 class="step-title">Step 3: Trade and Track</h3>
-                        <p class="step-description">
-                            Make trades, maximize your profits, and track your progress in real time.
-                        </p>
+                    <div class="col-lg-4">
+                        <div class="how-it-works-card p-4 rounded bg-white shadow-sm">
+                            <h3 class="step-title">Step 3: Trade and Track</h3>
+                            <p class="step-description">
+                                Make trades, maximize your profits, and track your progress in real time.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
     <!-- About Us Section -->
-    <section id="about-us" class="about-us-section py-5">
-        <div class="container">
-            <h2 class="text-center mb-4">About Us</h2>
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
+        <section id="about-us" class="about-us-section py-5">
+            <div class="container">
+                <h2 class="text-center mb-4">About Us</h2>
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-center">
                 <!-- Connor's Block -->
-                <div class="about-block p-4 m-2 text-center bg-light rounded shadow-sm">
-                    <img src="{{ url_for('static', filename='images/connor.jpg') }}" alt="Connor's Photo" class="rounded-circle mb-3" width="120">
-                    <h3 class="about-name">Connor</h3>
-                    <p class="about-description">
-                        Co-founder and bot overlord of MarketMakingMadness. Connor is passionate about providing liquidity to markets and tightening the bid-ask spread. 
-                    </p>
-                </div>
+                    <div class="about-block p-4 m-2 text-center bg-light rounded shadow-sm">
+                        <img src="{{ url_for('static', filename='images/connor.jpg') }}" alt="Connor's Photo" class="rounded-circle mb-3" width="120">
+                        <h3 class="about-name">Connor</h3>
+                        <p class="about-description">
+                            Co-founder and bot overlord of MarketMakingMadness. Connor is passionate about providing liquidity to markets and tightening the bid-ask spread.
+                        </p>
+                    </div>
                 <!-- Jesse's Block -->
-                <div class="about-block p-4 m-2 text-center bg-light rounded shadow-sm">
-                    <img src="{{ url_for('static', filename='images/jesse.jpg') }}" alt="Jesse's Photo" class="rounded-circle mb-3" width="120">
-                    <h3 class="about-name">Jesse</h3>
-                    <p class="about-description">
-                        Co-founder and game strategist of MarketMakingMadness. Jesse is a fundamental analyst and trader with a passion for making long-term positive EV decisions.
-                    </p>
+                    <div class="about-block p-4 m-2 text-center bg-light rounded shadow-sm">
+                        <img src="{{ url_for('static', filename='images/jesse.jpg') }}" alt="Jesse's Photo" class="rounded-circle mb-3" width="120">
+                        <h3 class="about-name">Jesse</h3>
+                        <p class="about-description">
+                            Co-founder and game strategist of MarketMakingMadness. Jesse is a fundamental analyst and trader with a passion for making long-term positive EV decisions.
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
-    </section>
-</div>
+        </section>
+    </div>
 {% endblock %}

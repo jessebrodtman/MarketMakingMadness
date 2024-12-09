@@ -9,38 +9,38 @@
 {% endblock %}
 
 {% block main %}
-<div class="register-container d-flex">
+    <div class="register-container d-flex">
     <!-- Registration Form -->
-    <div class="register-form-container col-lg-6 p-5">
-        <h1 class="text-center">Create an account</h1>
-        <p class="text-center mb-4">Start your journey with MarketMakingMadness!</p>
-        <form action="/register" method="post" class="register-form">
+        <div class="register-form-container col-lg-6 p-5">
+            <h1 class="text-center">Create an account</h1>
+            <p class="text-center mb-4">Start your journey with MarketMakingMadness!</p>
+            <form action="/register" method="post" class="register-form">
             <!-- Username Input -->
-            <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required>
-            </div>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required>
+                </div>
 
             <!-- Password Input -->
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
-            </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+                </div>
 
             <!-- Confirm Password Input -->
-            <div class="mb-3">
-                <label for="confirmation" class="form-label">Confirm Password</label>
-                <input type="password" class="form-control" id="confirmation" name="confirmation" placeholder="Confirm your password" required>
-            </div>
+                <div class="mb-3">
+                    <label for="confirmation" class="form-label">Confirm Password</label>
+                    <input type="password" class="form-control" id="confirmation" name="confirmation" placeholder="Confirm your password" required>
+                </div>
 
             <!-- Submit Button -->
-            <button type="submit" class="btn btn-primary w-100 mb-3">Register</button>
+                <button type="submit" class="btn btn-primary w-100 mb-3">Register</button>
 
             <!-- Sign In Link -->
-            <p class="text-center">
-                Already have an account? <a href="/login" class="text-decoration-none">Sign in</a>
-            </p>
-        </form>
+                <p class="text-center">
+                    Already have an account? <a href="/login" class="text-decoration-none">Sign in</a>
+                </p>
+            </form>
+        </div>
     </div>
-</div>
 {% endblock %}

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 BOTS = {}  # Dictionary to track active bots in all lobbies
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
+
 class Bot:
     def __init__(self, bot_id, name, fair_value, lobby_id, level="medium"):
         """
@@ -67,7 +68,7 @@ class Bot:
 
     def adjust_estimated_fair_value(self):
         """
-        Adjust the bot's estimated fair value based on recent trades.
+        Adjust the bot's estimated fair value based on recent trades
         """
         last_trades = self.market_state.get("recent_trades", [])
         if not last_trades:
@@ -94,10 +95,9 @@ class Bot:
         noise = level_noise.get(self.level, random.uniform(-0.02, 0.02))
         self.estimated_fair_value = new_fair_value * (1 + noise)
 
-
     def generate_bid_ask(self):
         """
-        Generate a bid/ask price based on the bot level, current market state, and market depth.
+        Generate a bid/ask price based on the bot level, current market state, and market depth
         """
         # Generate random noise based on bot level
         level_noise = {
@@ -172,7 +172,7 @@ class Bot:
     def decide_to_trade(self):
         """
         Decide whether the bot will execute a trade based on market conditions,
-        depth, and recent activity in the market.
+        depth, and recent activity in the market
         """
         best_ask = self.market_state.get("best_ask", None)
         best_bid = self.market_state.get("best_bid", None)
@@ -206,7 +206,6 @@ class Bot:
                 return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
 
         # Adjust based on spread and activity
-        # Adjust based on spread and activity
         spread = (best_ask["price"] - best_bid["price"]) if best_ask and best_bid else None
         if spread:
             # Calculate relative thresholds based on fair value
@@ -221,23 +220,20 @@ class Bot:
                 else:
                     return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
 
-
         return None
-
 
     def _calculate_trade_quantity(self):
         """
-        Determine the quantity for the bot's trades based on proportional likelihood.
+        Determine the quantity for the bot's trades based on proportional likelihood
         """
         # Higher probability for smaller quantities
         quantities = [1, 2, 3, 5, 8]  # Fibonacci-like for variability
         weights = [0.4, 0.3, 0.2, 0.07, 0.03]  # Higher weights for smaller quantities
         return random.choices(quantities, weights=weights, k=1)[0]
 
-
     def _get_trade_frequency_modifier(self, last_trades):
         """
-        Determine how often the bot should trade based on market activity.
+        Determine how often the bot should trade based on market activity
         """
         now = datetime.now()
         recent_trades = [
@@ -257,7 +253,6 @@ class Bot:
         else:
             return 0.2  # Low activity, higher trade frequency
 
-
     def update_pnl(self, trade_price, trade_type):
         """
         Update the bot's P&L based on completed trades
@@ -269,7 +264,7 @@ class Bot:
 
     def should_update_quotes(self):
         """
-        Decide whether the bot should post new bid/ask prices based on market conditions and timing.
+        Decide whether the bot should post new bid/ask prices based on market conditions and timing
         """
         now = datetime.now()
         time_since_last_trade = (now - self.last_trade_time).total_seconds()
@@ -287,7 +282,7 @@ class Bot:
             return False
 
         # Only update if sufficient time has passed since the last trade
-        if time_since_last_trade < 30:  # Increase this threshold to further slow down
+        if time_since_last_trade < 5:  # Increase this threshold to further slow down
             return False
 
         # Check if the bot's current quotes are still competitive
@@ -304,7 +299,6 @@ class Bot:
         return True
 
 
-
 def create_bot(bot_id, name, fair_value, lobby_id, level="medium"):
     """
     Create a new bot and add it to the BOTS dictionary
@@ -313,12 +307,14 @@ def create_bot(bot_id, name, fair_value, lobby_id, level="medium"):
     BOTS[bot_id] = new_bot
     return new_bot
 
+
 def remove_bot(bot_id):
     """
     Remove a bot from the BOTS dictionary
     """
     if bot_id in BOTS:
         del BOTS[bot_id]
+
 
 def get_bots_in_lobby(lobby_id):
     """

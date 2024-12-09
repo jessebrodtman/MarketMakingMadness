@@ -11,7 +11,8 @@ import bots
 from bots import create_bot, get_bots_in_lobby
 import random
 from datetime import datetime
-import time, threading
+import time
+import threading
 from threading import Lock
 import logging
 
@@ -19,13 +20,14 @@ import globals
 from globals import db, bot_lock
 socketio = None  # Private variable to store the SocketIO instance
 
+
 def set_socketio(socketio_instance):
     """Setter function to initialize the socketio instance."""
     global socketio
     socketio = socketio_instance
 
 
-# More Bot Helper Functions and Routes that cant be in bots.py 
+# More Bot Helper Functions and Routes that cant be in bots.py
 def get_current_market_state(lobby_id):
     """
     Retrieve the current market state for a specific lobby.
@@ -71,23 +73,25 @@ def get_current_market_state(lobby_id):
         "recent_trades": recent_trades,
     }
 
+
 def bot_action(lobby_id):
     """
     Perform trading actions for all bots in a lobby
     """
 
     # Get the bots in this lobby
-    bots = get_bots_in_lobby(lobby_id) 
-    
+    bots = get_bots_in_lobby(lobby_id)
+
     while True:
         with bot_lock:
             print(f"Bot action running for lobby {lobby_id}")
             # Find the lobby to operate in, stop if needed
             lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
             if not lobby or lobby["status"] != "in_progress":
-                print(f"Stopping bot action for lobby {lobby_id} (lobby not found or game not in progress)")
+                print(
+                    f"Stopping bot action for lobby {lobby_id} (lobby not found or game not in progress)")
                 break
-            
+
             # Update market state for each bot
             for bot in bots:
                 market_state = get_current_market_state(lobby_id)
@@ -99,13 +103,15 @@ def bot_action(lobby_id):
                     bid, ask = bot.generate_bid_ask()
                     for price, order_type in [(bid, "bid"), (ask, "ask")]:
                         order_quantity = random.randint(1, 10)
-                        print(f"logging bot trade of lobby id: {lobby_id}, bot id: {bot.bot_id}, price: {price}, order_type: {order_type}, quantity: {random.randint(1, 10)}")
-                        print(f"{type(lobby_id)}, {type(bot.bot_id)}, {type(price)}, {type(random.randint(1, 10))}, {type(order_type)}")
+                        print(
+                            f"logging bot trade of lobby id: {lobby_id}, bot id: {bot.bot_id}, price: {price}, order_type: {order_type}, quantity: {random.randint(1, 10)}")
+                        print(
+                            f"{type(lobby_id)}, {type(bot.bot_id)}, {type(price)}, {type(random.randint(1, 10))}, {type(order_type)}")
                         db.execute("""
                             INSERT INTO orders (game_id, user_id, price, quantity, order_type, created_at)
                             VALUES (:game_id, :user_id, :price, :quantity, :order_type, CURRENT_TIMESTAMP)
                         """, game_id=lobby_id, user_id=bot.bot_id, price=price, quantity=order_quantity, order_type=order_type)
-                        
+
                         # Emit real-time market update
                         # Get market data
                         asks = db.execute("""
@@ -127,9 +133,11 @@ def bot_action(lobby_id):
                 # Decide to trade or not
                 trade = bot.decide_to_trade()
                 if trade:
-                    execute_trade(lobby_id, bot.bot_id, trade["type"], trade["price"], random.randint(1, 10))
-            
-        time.sleep(5) # Sleep for 5 seconds between bot actions
+                    execute_trade(lobby_id, bot.bot_id,
+                                  trade["type"], trade["price"], random.randint(1, 10))
+
+        time.sleep(5)  # Sleep for 5 seconds between bot actions
+
 
 def countdown_timer(lobby_id, redirect_url):
     """
@@ -150,18 +158,22 @@ def countdown_timer(lobby_id, redirect_url):
             socketio.emit('timer_update', {'game_length': lobby["game_length"]}, room=lobby_id)
         else:
             # Timer reaches zero
-            socketio.emit('timer_ended', {'message': 'Time is up! Game over!', 'redirect_url': redirect_url}, room=lobby_id)
+            socketio.emit('timer_ended', {'message': 'Time is up! Game over!',
+                          'redirect_url': redirect_url}, room=lobby_id)
 
             # End the game
             end_game_helper(lobby_id)
             break
 
 # Helper Functions for Databases and globals.lobbies
+
+
 def is_lobby_full(lobby):
     """
     Check if a lobby is full, considering both players and bots
     """
     return len(lobby["players"]) >= int(lobby["max_players"])
+
 
 def create_game(lobby_id, scenario, lobby_name, game_length):
     """
@@ -171,6 +183,7 @@ def create_game(lobby_id, scenario, lobby_name, game_length):
         INSERT INTO games (id, scenario, lobby_name, status, game_length)
         VALUES (:id, :scenario, :lobby_name, :status, :game_length)
     """, id=lobby_id, scenario=scenario, lobby_name=lobby_name, status="waiting", game_length=game_length)
+
 
 def finalize_game_results(game_id, lobby):
     """
@@ -218,6 +231,7 @@ def finalize_game_results(game_id, lobby):
 
     """, game_id=game_id, scenario=scenario, fair_value=fair_value)
 
+
 def mark_game_as_completed(game_id):
     """
     Mark the game as completed
@@ -229,6 +243,8 @@ def mark_game_as_completed(game_id):
     """, game_id=game_id)
 
 # Lobby and Game Logic Helper Functions
+
+
 def get_fair_value(lobby_id):
     """
     Retrieve the fair value of the market for a given lobby
@@ -239,11 +255,13 @@ def get_fair_value(lobby_id):
         return market['fair_value']
     raise ValueError(f"No market found for lobby {lobby_id}")  # Error if lobby has no market
 
+
 def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
     """
     Execute a trade for a given user and update the market in real-time
     """
-    print(f"executing trade for {game_id}, {user_id}, {trade_type}, {trade_price}, {trade_quantity}")
+    print(
+        f"executing trade for {game_id}, {user_id}, {trade_type}, {trade_price}, {trade_quantity}")
     if trade_type == "buy":
         # Match with the best ask
         best_ask = db.execute("""
@@ -278,15 +296,18 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             for lobby in globals.lobbies:
                 if lobby["id"] == game_id:
                     print("Players: ", lobby["players"])
-                    buyer_name = next((player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
-                    seller_name = next((player["name"] for player in lobby["players"] if player["id"] == ask["user_id"]), None)
+                    buyer_name = next(
+                        (player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
+                    seller_name = next(
+                        (player["name"] for player in lobby["players"] if player["id"] == ask["user_id"]), None)
                     break
             # Emit real-time trade update
-            print("completing trade with price: ", ask['price'], " quantity: ", quantity_to_trade, "buyer: ", buyer_name, str(user_id), " and seller: ", seller_name, ask["user_id"])
-            print("types: ",type(seller_name), type(buyer_name))
-            socketio.emit("trade_update", 
-                {'price': ask['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': user_id, 'seller_name': seller_name, 'seller_id': ask["user_id"],'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }, room=game_id)
+            print("completing trade with price: ", ask['price'], " quantity: ", quantity_to_trade, "buyer: ", buyer_name, str(
+                user_id), " and seller: ", seller_name, ask["user_id"])
+            print("types: ", type(seller_name), type(buyer_name))
+            socketio.emit("trade_update",
+                          {'price': ask['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': user_id, 'seller_name': seller_name, 'seller_id': ask["user_id"], 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                           }, room=game_id)
             # Emit real-time market update
             # Get market data
             asks = db.execute("""
@@ -338,15 +359,18 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             for lobby in globals.lobbies:
                 if lobby["id"] == game_id:
                     print("Players: ", lobby["players"])
-                    buyer_name = next((player["name"] for player in lobby["players"] if player["id"] == bid["user_id"]), None)
-                    seller_name = next((player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
+                    buyer_name = next(
+                        (player["name"] for player in lobby["players"] if player["id"] == bid["user_id"]), None)
+                    seller_name = next(
+                        (player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
                     break
             # Emit real-time trade update
-            print("completing trade with price: ", bid['price'], " quantity: ", quantity_to_trade, "buyer: ", buyer_name, bid["user_id"], " and seller: ", seller_name, user_id)
-            print("types: ",type(seller_name), type(buyer_name))
-            socketio.emit("trade_update", 
-                {'price': bid['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': bid["user_id"], 'seller_name': seller_name, 'seller_id': user_id, 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }, room=game_id)
+            print("completing trade with price: ", bid['price'], " quantity: ", quantity_to_trade,
+                  "buyer: ", buyer_name, bid["user_id"], " and seller: ", seller_name, user_id)
+            print("types: ", type(seller_name), type(buyer_name))
+            socketio.emit("trade_update",
+                          {'price': bid['price'], 'quantity': quantity_to_trade, 'buyer_name': buyer_name, 'buyer_id': bid["user_id"], 'seller_name': seller_name, 'seller_id': user_id, 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                           }, room=game_id)
             # Emit real-time market update
             # Get market data
             asks = db.execute("""
@@ -367,6 +391,8 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
             flash("No matching bid found", "danger")
 
 # Lobby / Game Cleanup Functions
+
+
 def cleanup_lobby(lobby_id):
     """
     Remove the lobby and associated data from memory
@@ -382,6 +408,7 @@ def cleanup_lobby(lobby_id):
     # Remove market associated with the lobby
     if lobby_id in globals.markets:
         del globals.markets[lobby_id]
+
 
 def cleanup_game_data(game_id, lobby):
     """
@@ -417,6 +444,7 @@ def cleanup_game_data(game_id, lobby):
         DELETE FROM game_participants WHERE game_id = :game_id
     """, game_id=game_id)
 
+
 def cleanup_all(lobby_id):
     """
     Perform a full cleanup for a given lobby
@@ -445,6 +473,7 @@ def cleanup_all(lobby_id):
     except Exception as e:
         print(f"Error during full cleanup for lobby ID {lobby_id}: {e}")
         raise
+
 
 def end_game_helper(lobby_id):
     """

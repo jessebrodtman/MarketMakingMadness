@@ -9,42 +9,42 @@
 {% endblock %}
 
 {% block main %}
-<div class="login-container d-flex">
+    <div class="login-container d-flex">
     <!-- Left side: Form -->
-    <div class="login-form-container col-lg-6 p-5">
-        <h1 class="text-center">Welcome back</h1>
-        <p class="text-center mb-4">Please enter your details</p>
-        <form action="/login" method="post" class="login-form">
+        <div class="login-form-container col-lg-6 p-5">
+            <h1 class="text-center">Welcome back</h1>
+            <p class="text-center mb-4">Please enter your details</p>
+            <form action="/login" method="post" class="login-form">
             <!-- Username Input -->
-            <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required>
-            </div>
-            
-            
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required>
+                </div>
+
+
             <!-- Password Input -->
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
-            </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+                </div>
 
             <!-- Remember Me & Forgot Password -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="remember-me" name="remember-me">
-                    <label class="form-check-label" for="remember-me">Remember for 30 days</label>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="remember-me" name="remember-me">
+                        <label class="form-check-label" for="remember-me">Remember for 30 days</label>
+                    </div>
+                    <a href="/forgot-password" class="text-decoration-none">Forgot password</a>
                 </div>
-                <a href="/forgot-password" class="text-decoration-none">Forgot password</a>
-            </div>
 
             <!-- Submit Button -->
-            <button type="submit" class="btn btn-primary w-100 mb-3">Sign in</button>
+                <button type="submit" class="btn btn-primary w-100 mb-3">Sign in</button>
 
             <!-- Register Link -->
-            <p class="text-center">
-                Don’t have an account? <a href="/register" class="text-decoration-none">Sign up</a>
-            </p>
-        </form>
+                <p class="text-center">
+                    Don’t have an account? <a href="/register" class="text-decoration-none">Sign up</a>
+                </p>
+            </form>
+        </div>
     </div>
-</div>
 {% endblock %}

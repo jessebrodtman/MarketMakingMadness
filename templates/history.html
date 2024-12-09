@@ -9,66 +9,66 @@
 {% endblock %}
 
 {% block main %}
-<div class="history-container">
+    <div class="history-container">
     <!-- Statistics Section -->
-    <section class="history-stats">
-        <h1>Your Game History</h1>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h2>Total Profit & Loss</h2>
-                <p class="stat-value">
-                {% if total_pnl >= 0 %}
-                    ${{ total_pnl | round(2) }}
-                {% else %}
-                    -${{ total_pnl|abs | round(2) }}
-                {% endif %}</p>
+        <section class="history-stats">
+            <h1>Your Game History</h1>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h2>Total Profit & Loss</h2>
+                    <p class="stat-value">
+                        {% if total_pnl >= 0 %}
+                            ${{ total_pnl | round(2) }}
+                        {% else %}
+                            -${{ total_pnl|abs | round(2) }}
+                        {% endif %}</p>
+                </div>
+                <div class="stat-card">
+                    <h2>Total Games Played</h2>
+                    <p class="stat-value">{{ total_games }}</p>
+                </div>
+                <div class="stat-card">
+                    <h2>Winning Percentage</h2>
+                    <p class="stat-value">{{ winning_percentage }}%</p>
+                </div>
+                <div class="stat-card">
+                    <h2>Best P&L</h2>
+                    <p class="stat-value">{% if best_pnl >= 0 %}
+                        ${{ best_pnl | round(2) }}
+                    {% else %}
+                        -${{ best_pnl|abs | round(2) }}
+                    {% endif %}</p>
+                </div>
             </div>
-            <div class="stat-card">
-                <h2>Total Games Played</h2>
-                <p class="stat-value">{{ total_games }}</p>
-            </div>
-            <div class="stat-card">
-                <h2>Winning Percentage</h2>
-                <p class="stat-value">{{ winning_percentage }}%</p>
-            </div>
-            <div class="stat-card">
-                <h2>Best P&L</h2>
-                <p class="stat-value">{% if best_pnl >= 0 %}
-                    ${{ best_pnl | round(2) }}
-                {% else %}
-                    -${{ best_pnl|abs | round(2) }}
-                {% endif %}</p>
-            </div>
-        </div>
-    </section>
+        </section>
 
     <!-- Game History Table -->
-    <section class="game-history">
-        <h2>Detailed Game History</h2>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Scenario</th>
-                    <th>P&L</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for game in games %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ game.scenario }}</td>
-                    <td>
-                        {% if game.pnl >= 0 %}
-                            ${{ game.pnl | round(2) }}
-                        {% else %}
-                            -${{ game.pnl|abs | round(2) }}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
-</div>
+        <section class="game-history">
+            <h2>Detailed Game History</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Scenario</th>
+                        <th>P&L</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for game in games %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ game.scenario }}</td>
+                            <td>
+                                {% if game.pnl >= 0 %}
+                                    ${{ game.pnl | round(2) }}
+                                {% else %}
+                                    -${{ game.pnl|abs | round(2) }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </div>
 {% endblock %}

@@ -9,7 +9,8 @@ from markets import get_random_market
 from bots import BOTS, create_bot, get_bots_in_lobby
 import random
 from datetime import datetime
-import time, threading
+import time
+import threading
 from threading import Lock
 import logging
 
@@ -22,7 +23,7 @@ from utilities import (
 )
 
 import globals
-from globals import db # Import shared state and database connection
+from globals import db  # Import shared state and database connection
 
 # Configure application
 app = Flask(__name__)
@@ -51,6 +52,7 @@ def login_required(f):
 
     return decorated_function
 
+
 @app.after_request
 def after_request(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -58,9 +60,11 @@ def after_request(response):
     response.headers["Pragma"] = "no-cache"
     return response
 
+
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=True)
     socketio.run(app)
+
 
 @app.route("/add_bot_to_lobby/<lobby_id>", methods=["POST"])
 @login_required
@@ -87,8 +91,10 @@ def add_bot_to_lobby(lobby_id):
     # Add bot to the lobby
     bot_id = str(uuid.uuid4())
     bot = create_bot(bot_id, bot_name, get_fair_value(lobby_id), lobby_id, bot_level)
-    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True, "last_active": datetime.now(), "id": bot_id})  # Mark bot as ready
-    db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)", game_id=lobby_id, user_id=bot_id, username=bot_name)
+    lobby["players"].append({"name": bot_name, "ready": True, "is_bot": True,
+                            "last_active": datetime.now(), "id": bot_id})  # Mark bot as ready
+    db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)",
+               game_id=lobby_id, user_id=bot_id, username=bot_name)
 
     flash(f"Bot '{bot_name}' added to the lobby", "success")
 
@@ -119,13 +125,13 @@ def start_bot_trading(lobby_id):
         return redirect(url_for('join_lobby', lobby_id=lobby_id))
 
     print("starting bot trading cycles")
-    bot_thread = threading.Thread(target=bot_action, args=(lobby_id,)) # Use a separate thread for bot trading
+    bot_thread = threading.Thread(target=bot_action, args=(
+        lobby_id,))  # Use a separate thread for bot trading
     bot_thread.daemon = True  # Set as daemon so it stops when the main program stops
-    bot_thread.start() # Start the bot trading thread
+    bot_thread.start()  # Start the bot trading thread
 
     flash("Bot trading cycles started.", "success")
     return redirect(url_for('join_lobby', lobby_id=lobby_id))
-
 
 
 @app.route("/")
@@ -137,19 +143,20 @@ def index():
     try:
         # Get user data if logged in
         user_id = session["user_id"]
-        print(f"User ID from session: {user_id}");
+        print(f"User ID from session: {user_id}")
 
         # Get user stats
         stats = db.execute("""
-            SELECT 
+            SELECT
                 IFNULL(SUM(pnl), 0) AS total_pnl,
                 IFNULL(COUNT(id), 0) AS games_played
-            FROM game_results 
+            FROM game_results
             WHERE user_id = :user_id
         """, user_id=user_id)[0]
         print(f"Stats fetched: {stats}")
 
-        username = db.execute("SELECT username FROM users WHERE id = :user_id", user_id=user_id)[0]["username"]
+        username = db.execute("SELECT username FROM users WHERE id = :user_id",
+                              user_id=user_id)[0]["username"]
         print(f"Username fetched: {username}")
 
         visitors_online = 95774  # Placeholder for visitor count
@@ -197,7 +204,7 @@ def login():
 
     return render_template("login.html")
 
-    
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -233,7 +240,7 @@ def register():
         return redirect("/")
     return render_template("register.html")
 
-    
+
 @app.route("/play", methods=["GET", "POST"])
 @login_required
 def play():
@@ -262,17 +269,18 @@ def history():
 
     # Find users statistics
     stats = db.execute("""
-        SELECT 
+        SELECT
             IFNULL(SUM(pnl), 0) AS total_pnl,
             IFNULL(COUNT(id), 0) AS total_games,
             IFNULL(MAX(pnl), 0) AS best_pnl
-        FROM game_results 
+        FROM game_results
         WHERE user_id = :user_id
     """, user_id=user_id)[0]
 
     # Calculate winning percentage
     total_games = stats["total_games"]
-    total_wins = db.execute("SELECT COUNT(id) FROM game_results WHERE user_id = :user_id AND pnl > 0", user_id=user_id)[0]["COUNT(id)"]
+    total_wins = db.execute(
+        "SELECT COUNT(id) FROM game_results WHERE user_id = :user_id AND pnl > 0", user_id=user_id)[0]["COUNT(id)"]
     winning_percentage = (total_wins / total_games * 100) if total_games > 0 else 0
 
     # Get detailed game history
@@ -292,6 +300,7 @@ def history():
         winning_percentage=round(winning_percentage, 2),
         games=games
     )
+
 
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
@@ -342,7 +351,7 @@ def settings():
     # Render the settings page
     return render_template("settings.html", user=user)
 
-    
+
 @app.route("/logout")
 def logout():
     """
@@ -352,12 +361,14 @@ def logout():
     flash("You have been logged out successfully", "info")
     return redirect("/login")
 
+
 @app.errorhandler(404)
 def not_found_error(e):
     """
     Handle 404 Not Found errors
     """
     return render_template("error.html", error_message="The page you are looking for does not exist."), 404
+
 
 @app.errorhandler(500)
 def internal_error(e):
@@ -366,12 +377,14 @@ def internal_error(e):
     """
     return render_template("error.html", error_message="An internal server error occurred. Please try again later."), 500
 
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     """
     Handle all other exceptions with a generic error message
     """
     return render_template("error.html", error_message="An unexpected error occurred. Please contact support."), 500
+
 
 @app.route("/create_lobby", methods=["GET", "POST"])
 @login_required
@@ -399,7 +412,7 @@ def create_lobby():
         lobby_name = request.form.get("lobby_name")
         max_players = request.form.get("max_players")
         game_length = int(request.form.get("game_length"))
-        
+
         # Validate max_players input
         if not max_players.isdigit() or int(max_players) <= 0:
             flash("Max players must be a positive number", "danger")
@@ -423,7 +436,7 @@ def create_lobby():
             "current_players": 0,
             "status": "waiting",
             "players": [],
-            "market_question": market["question"], 
+            "market_question": market["question"],
             "game_length": game_length,
         }
         globals.lobbies.append(new_lobby)
@@ -487,7 +500,7 @@ def join_lobby(lobby_id):
         if len(lobby["players"]) >= int(lobby["max_players"]):
             flash("Lobby is full", "danger")
             return redirect(url_for("play"))
-        
+
         print("checking if game has started")
         # Prevent joining if the game has already started
         if lobby["status"] == "in_progress":
@@ -496,18 +509,21 @@ def join_lobby(lobby_id):
 
         print("adding player to lobby")
         # Add the player to the lobby
-        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False, "last_active": datetime.now(), "id": str(session["user_id"])})
-        db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)", game_id=lobby_id, user_id=str(session["user_id"]), username=session.get("username"))
+        lobby["players"].append({"name": player_name, "ready": False, "is_bot": False,
+                                "last_active": datetime.now(), "id": str(session["user_id"])})
+        db.execute("INSERT INTO game_participants (game_id, user_id, username) VALUES (:game_id, :user_id, :username)",
+                   game_id=lobby_id, user_id=str(session["user_id"]), username=session.get("username"))
         lobby["current_players"] += 1
 
         print("emitting event")
         # Notify the lobby of the updated players list
         socketio.emit("force_refresh", to=lobby_id)
 
-        #flash("You have joined the lobby", "success")
+        # flash("You have joined the lobby", "success")
 
     print("rendering lobby")
     return render_template("lobby.html", lobby=lobby)
+
 
 @socketio.on("join_room_event")
 def join_room_event(data):
@@ -528,6 +544,7 @@ def join_room_event(data):
     # Notify others in the room
     socketio.emit("player_joined", {"player": username}, to=lobby_id)
 
+
 @app.route("/toggle_ready/<lobby_id>", methods=["GET", "POST"])
 @login_required
 def toggle_ready(lobby_id):
@@ -536,12 +553,14 @@ def toggle_ready(lobby_id):
         if lobby['id'] == lobby_id:
             # Find user
             player_name = session.get('username')
-            player = next((player for player in lobby['players'] if player['name'] == player_name), None)
+            player = next((player for player in lobby['players']
+                          if player['name'] == player_name), None)
             if player:
                 # Update user's ready status
                 player['ready'] = not player['ready']
                 socketio.emit('force_refresh', to=lobby_id)
             return redirect(url_for('join_lobby', lobby_id=lobby_id))
+
 
 @app.route("/execute_trade/<lobby_id>", methods=["POST"])
 @login_required
@@ -559,9 +578,11 @@ def player_trade(lobby_id):
     execute_trade(lobby_id, user_id, trade_type, trade_price, trade_quantity)
 
     # Emit real-time player action update
-    socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id, "action": trade_type, "price": trade_price, "quantity": trade_quantity}, room=lobby_id)
-    #return ('', 204)
+    socketio.emit("player_action", {"lobby_id": lobby_id, "user_id": user_id,
+                  "action": trade_type, "price": trade_price, "quantity": trade_quantity}, room=lobby_id)
+    # return ('', 204)
     return redirect(url_for("game", lobby_id=lobby_id))
+
 
 @app.route("/set_order/<lobby_id>", methods=["POST"])
 @login_required
@@ -576,7 +597,8 @@ def set_order(lobby_id):
     order_quantity = int(request.form.get("quantity"))
 
     # Insert the new order into the database
-    print(f"inserting player trade of {lobby_id}, {user_id}, {order_type}, {order_price}, {order_quantity}")
+    print(
+        f"inserting player trade of {lobby_id}, {user_id}, {order_type}, {order_price}, {order_quantity}")
     print(f"{type(lobby_id)}, {type(user_id)}, {type(order_type)}, {type(order_price)}, {type(order_quantity)}")
     db.execute("""
         INSERT INTO orders (game_id, user_id, order_type, price, quantity, created_at)
@@ -602,6 +624,7 @@ def set_order(lobby_id):
 
     flash(f"Your {order_type} order has been placed.", "success")
     return redirect(url_for("game", lobby_id=lobby_id))
+
 
 @app.route("/game/<lobby_id>", methods=["GET"])
 @login_required
@@ -629,15 +652,17 @@ def game(lobby_id):
     """, game_id=lobby_id)
 
     # Get trade history
-    transactions = db.execute("""SELECT * FROM transactions t where t.game_id = :game_id""", game_id=lobby_id)
+    transactions = db.execute(
+        """SELECT * FROM transactions t where t.game_id = :game_id""", game_id=lobby_id)
     print("transactions:", transactions)
-    game_participants = db.execute("""SELECT * FROM game_participants gp where gp.game_id = :game_id""", game_id=lobby_id)
+    game_participants = db.execute(
+        """SELECT * FROM game_participants gp where gp.game_id = :game_id""", game_id=lobby_id)
     print("game participants:", game_participants)
 
     trade_history = db.execute("""
         SELECT DISTINCT
-            t.price, 
-            t.quantity, 
+            t.price,
+            t.quantity,
             t.created_at,
             buyer.username AS buyer,
             seller.username AS seller
@@ -672,6 +697,7 @@ def game(lobby_id):
 
     return render_template("game.html", **context)
 
+
 @app.route("/leave_lobby/<lobby_id>", methods=["POST"])
 @login_required
 def leave_lobby(lobby_id):
@@ -693,7 +719,7 @@ def leave_lobby(lobby_id):
     lobby["current_players"] = len(lobby["players"])
 
     # Notify the lobby of the updated players list
-    #socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
+    # socketio.emit("lobby_update", {"lobby_id": lobby_id, "players": lobby["players"]}, to=lobby_id)
 
     print("checking if lobby is empty")
     # Check if the lobby is now empty
@@ -707,9 +733,10 @@ def leave_lobby(lobby_id):
         cleanup_all(lobby["id"])
         socketio.emit("force_refresh", to="/play")
 
-    #flash("You have left the lobby", "success")
+    # flash("You have left the lobby", "success")
     socketio.emit("force_refresh", to=lobby_id)
     return redirect(url_for("play"))
+
 
 @socketio.on("leave_room_event")
 def leave_room_event(data):
@@ -730,6 +757,7 @@ def leave_room_event(data):
     # Notify others in the room
     socketio.emit("player_left", {"player": username}, to=lobby_id)
 
+
 @app.route("/start_game/<lobby_id>", methods=["POST"])
 @login_required
 def start_game(lobby_id):
@@ -748,8 +776,8 @@ def start_game(lobby_id):
     if len(lobby["players"]) < 2:
         flash("Lobby must have at least 2 players to start", "danger")
         return redirect(url_for("join_lobby", lobby_id=lobby_id))
-    
-    #make sure all players are ready
+
+    # make sure all players are ready
     for player in lobby["players"]:
         if not player["ready"]:
             flash("All players must be ready to start the game", "danger")
@@ -773,13 +801,14 @@ def start_game(lobby_id):
     try:
         # Notify players via SocketIO
         game_url = url_for("game", lobby_id=lobby_id)
-        socketio.emit("game_start", {"redirect_url": game_url}, to = lobby_id)
+        socketio.emit("game_start", {"redirect_url": game_url}, to=lobby_id)
         socketio.emit("force_refresh", to=lobby_id)
         print("game start emitted")
         return redirect(url_for("game", lobby_id=lobby_id))
     except Exception as e:
         print(f"Error in start_game: {e}")
         return redirect(url_for("play"))
+
 
 @app.route("/end_game/<lobby_id>", methods=["POST"])
 @login_required

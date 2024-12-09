@@ -5,104 +5,109 @@
 {% endblock %}
 
 {% block main %}
-<div class="container mt-5">
-    <h1 class="text-center mb-4">Select a Game Lobby</h1>
-    
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Select a Game Lobby</h1>
+
     <!-- Make new lobby -->
-     <div class="text-center mb-4">
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLobbyModal">Create New Lobby</button>
-     </div>
+        <div class="text-center mb-4">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLobbyModal">Create New Lobby</button>
+        </div>
     <!-- List lobbies -->
-    <div class="row">
-        {% for lobby in lobbies %}
-            <div class="col-md-4 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title"> {{ lobby.name }} </h5>
-                        <p class="card-text">Players: {{ lobby.players | length }} / {{ lobby.max_players }}</p>
-                        <p class="card-text">Status: {{ lobby.status }}</p>
-                        {% if lobby.id == user_lobby_id %}
-                            <!-- If the user is already in this lobby -->
-                            <p class="text-success"><strong>You are in this lobby</strong></p>
-                            <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-info">Re-Enter</a>
-                        {% elif user_lobby_id %}
-                            <!-- If the user is in a different lobby -->
-                            <button class="btn btn-secondary" disabled>Cannot Join (Already in Another Lobby)</button>
-                        {% else %}
-                            <!-- If the user is not in any lobby -->
-                            <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-success">Join</a>
-                        {% endif %}
+        <div class="row">
+            {% for lobby in lobbies %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"> {{ lobby.name }} </h5>
+                            <p class="card-text">Players: {{ lobby.players | length }} / {{ lobby.max_players }}</p>
+                            <p class="card-text">Status: {{ lobby.status }}</p>
+                            {% if lobby.id == user_lobby_id %}
+                    <!-- If the user is already in this lobby -->
+                                <p class="text-success"><strong>You are in this lobby</strong></p>
+                                <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-info">Re-Enter</a>
+                            {% elif user_lobby_id %}
+                    <!-- If the user is in a different lobby -->
+                                <button class="btn btn-secondary" disabled>Cannot Join (Already in Another Lobby)</button>
+                            {% else %}
+                    <!-- If the user is not in any lobby -->
+                                <a href="{{ url_for('join_lobby', lobby_id=lobby.id) }}" class="btn btn-success">Join</a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-            </div>
-        {% endfor %}
-    </div>
+            {% endfor %}
+        </div>
 
     <!-- Create lobby modal -->
-    <div class="modal fade" id="createLobbyModal" tabindex="-1" aria-labelledby="createLobbyModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="createLobbyModalLabel">Create New Lobby</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form action="{{ url_for('create_lobby')}}" method="post">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="lobby_name" class="form-label">Lobby Name</label>
-                            <input type="text" class="form-control" id="lobby_name" name="lobby_name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="max_players" class="form-label">Max Players</label>
-                            <input type="number" class="form-control" id="max_players" name="max_players" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="max_players" class="form-label">Time Limit (seconds)</label>
-                            <input type="number" class="form-control" id="game_length" name="game_length" required>
-                        </div>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Create Lobby</button>
+        <div class="modal fade" id="createLobbyModal" tabindex="-1" aria-labelledby="createLobbyModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createLobbyModalLabel">Create New Lobby</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    
-                </form>
+                    <form action="{{ url_for('create_lobby')}}" method="post">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="lobby_name" class="form-label">Lobby Name</label>
+                                <input type="text" class="form-control" id="lobby_name" name="lobby_name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="max_players" class="form-label">Max Players</label>
+                                <input type="number" class="form-control" id="max_players" name="max_players" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="max_players" class="form-label">Time Limit (seconds)</label>
+                                <input type="number" class="form-control" id="game_length" name="game_length" required>
+                            </div>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary">Create Lobby</button>
+                        </div>
+
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
 
-    <script>
+        <script>
         // Initialize Socket.IO connection
-        const socket = io();
+            const socket = io();
 
         // Get the current page ID and username from Flask
-        const pageId = window.location.pathname;
-        const username = "{{ session.get('username') }}";
+            const pageId = window.location.pathname;
+            const username = "{{ session.get('username') }}";
 
         // Emit join_room_event when the page loads
-        socket.emit("join_room_event", { lobby_id: pageId, username });
-        console.log(`Client is attempting to join play page`);
+            socket.emit("join_room_event", {
+                lobby_id: pageId,
+                username
+            });
+            console.log(`Client is attempting to join play page`);
 
         // Emit leave_room_event when the page unloads
-        window.addEventListener("beforeunload", () => {
-            socket.emit("leave_room_event", { lobby_id: pageId, username });
-        });
+            window.addEventListener("beforeunload", () => {
+                socket.emit("leave_room_event", {
+                    lobby_id: pageId,
+                    username
+                });
+            });
 
-        socket.on('connect', () => {
-            console.log("SocketIO Connected");
-        });
+            socket.on('connect', () => {
+                console.log("SocketIO Connected");
+            });
 
-        socket.on('disconnect', () => {
-            console.log("SocketIO Disconnected");
-        });
+            socket.on('disconnect', () => {
+                console.log("SocketIO Disconnected");
+            });
 
-        socket.on("force_refresh", () => {
-            console.log("Received force_refresh event. Refreshing the page after 1/4 second");
+            socket.on("force_refresh", () => {
+                console.log("Received force_refresh event. Refreshing the page after 1/4 second");
 
-            setTimeout(() => {
-                window.location.reload(); // Refresh the page after 250ms
-            }, 250);
-        });
+                setTimeout(() => {
+                    window.location.reload(); // Refresh the page after 250ms
+                }, 250);
+            });
+        </script>
 
-    </script>
-
-</div>
+    </div>
 {% endblock %}

@@ -108,6 +108,7 @@ MARKETS = {
     "Number of Oscars won by Meryl Streep": 3,
 }
 
+
 def get_random_market():
     """
     Returns a random market question and its correct answer as a dictionary
@@ -123,11 +124,13 @@ def get_market_answer(market_question):
     """
     return MARKETS.get(market_question, None)
 
+
 def get_all_markets():
     """
     Returns the entire dictionary of markets
     """
     return MARKETS
+
 
 def add_market(question, answer):
     """

@@ -10,23 +10,23 @@
 
 {% block main %}
     <div class="game-container mt-5">
-        <!-- Timer Display -->
+    <!-- Timer Display -->
         <div class="game-timer text-center mb-4">
             <h4>Time Remaining: <span id="timer">{{ lobby.game_length }}</span> seconds</h4>
         </div>
 
-        <!-- Market Question -->
+    <!-- Market Question -->
         <div class="game-market-question text-center mb-4">
             <h3 class="game-market-question-title">{{ lobby.market_question }}</h3>
         </div>
 
-        <!-- Bid/Ask Market Display and Player Actions -->
+    <!-- Bid/Ask Market Display and Player Actions -->
         <div class="row">
-            <!-- Bid/Ask Market Display -->
+        <!-- Bid/Ask Market Display -->
             <div class="col-md-6">
                 <h4 class="game-section-title text-center">Market Depth</h4>
                 <div class="game-market-display">
-                    <!-- Asks -->
+                <!-- Asks -->
                     <div class="game-market-asks">
                         <h5 class="game-market-subtitle text-center text-danger">Asks</h5>
                         <table class="game-market-table table table-hover">
@@ -56,7 +56,7 @@
                         </table>
                     </div>
 
-                    <!-- Bids -->
+                <!-- Bids -->
                     <div class="game-market-bids">
                         <h5 class="game-market-subtitle text-center text-success">Bids</h5>
                         <table class="game-market-table table table-hover">
@@ -88,7 +88,7 @@
                 </div>
             </div>
 
-            <!-- Player Actions -->
+        <!-- Player Actions -->
             <div class="col-md-6">
                 <h4 class="game-section-title text-center">Player Actions</h4>
                 <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST" class="game-player-action-form mb-4">
@@ -133,7 +133,7 @@
 
     <div class="game-container mt-5">
         <div class="row">
-            <!-- Portfolio Section -->
+        <!-- Portfolio Section -->
             <div class="col-md-6">
                 <h4 class="game-section-title text-center">Your Portfolio</h4>
                 <div class="game-trade--container">
@@ -160,7 +160,7 @@
                 </div>
             </div>
 
-            <!-- Trade History Section -->
+        <!-- Trade History Section -->
             <div class="col-md-6">
                 <h4 class="game-section-title text-center">Trade History</h4>
                 <div class="game-trade-history-container">
@@ -186,7 +186,7 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                    <!-- Scrollable if more than 10 trades -->
+                <!-- Scrollable if more than 10 trades -->
                     {% if trade_history|length > 10 %}
                         <div class="text-center mt-3">
                             <button class="game-btn btn btn-secondary btn-sm" onclick="scrollToFullTradeHistory()">View Full History</button>
@@ -196,8 +196,8 @@
             </div>
         </div>
     </div>
-    
-    <!-- Leave and End Game Buttons -->
+
+<!-- Leave and End Game Buttons -->
     <div class="container mt-4">
         <div class="row">
             <div class="col-md-6 text-center">
@@ -212,23 +212,29 @@
             </div>
         </div>
     </div>
-    
-    <!-- Cant use external js file due to needing the jinja variables -->
+
+<!-- Cant use external js file due to needing the jinja variables -->
     <script>
-        // Initialize Socket.IO connection
+    // Initialize Socket.IO connection
         const socket = io();
 
-        // Get the current lobby ID and username from Flask
+    // Get the current lobby ID and username from Flask
         const lobbyId = "{{ lobby.id }}";
         const username = "{{ session.get('username') }}";
 
-        // Emit join_room_event when the page loads
-        socket.emit("join_room_event", { lobby_id: lobbyId, username });
+    // Emit join_room_event when the page loads
+        socket.emit("join_room_event", {
+            lobby_id: lobbyId,
+            username
+        });
         console.log(`Client is attempting to join room with lobby_id: ${lobbyId}`);
 
-        // Emit leave_room_event when the page unloads
+    // Emit leave_room_event when the page unloads
         window.addEventListener("beforeunload", () => {
-            socket.emit("leave_room_event", { lobby_id: lobbyId, username });
+            socket.emit("leave_room_event", {
+                lobby_id: lobbyId,
+                username
+            });
         });
 
         socket.on('connect', () => {
@@ -239,26 +245,29 @@
             console.log("SocketIO Disconnected");
         });
 
-        // Listen for timer updates
+    // Listen for timer updates
         socket.on('timer_update', (data) => {
             document.getElementById('timer').innerText = `${data.game_length}`;
         });
 
-        // Listen for when the timer ends
+    // Listen for when the timer ends
         socket.on('timer_ended', (data) => {
             document.getElementById('timer').innerText = data.message;
 
-            // Redirect the user after 30 seconds
+        // Redirect the user after 30 seconds
             setTimeout(() => {
                 window.location.href = data.redirect_url;
             }, 30000);
         });
 
-        // Listen for market updates (bids and asks)
+    // Listen for market updates (bids and asks)
         socket.on("market_update", (data) => {
-            const { bids, asks } = data;
+            const {
+                bids,
+                asks
+            } = data;
 
-            // Update the bids table
+        // Update the bids table
             const bidsTableBody = document.querySelector("#bids-table");
             bidsTableBody.innerHTML = ""; // Clear existing rows
             bids.forEach((bid) => {
@@ -279,7 +288,7 @@
                 bidsTableBody.insertAdjacentHTML("beforeend", newRow); // Add updated bids
             });
 
-            // Update the asks table
+        // Update the asks table
             const asksTableBody = document.querySelector("#asks-table");
             asksTableBody.innerHTML = ""; // Clear existing rows
             asks.forEach((ask) => {
@@ -302,11 +311,15 @@
         });
 
         socket.on("market_update", (data) => {
-            const {order_type, price, quantity} = data;
+            const {
+                order_type,
+                price,
+                quantity
+            } = data;
             const lobbyActionUrl = "{{ url_for('player_trade', lobby_id=lobby.id) }}";
-        
+
             if (order_type === "bid") {
-                // Add new bids
+            // Add new bids
                 const bidsTableBody = document.querySelector("#bids-table");
                 console.log("bids table body:", bidsTableBody);
                 const newRow = `
@@ -325,7 +338,7 @@
                 `;
                 bidsTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new bid at the top
             } else if (order_type === "ask") {
-                // Add new asks
+            // Add new asks
                 const asksTableBody = document.querySelector("#asks-table");
                 const newRow = `
                     <tr>
@@ -345,10 +358,18 @@
             }
         });
 
-        // Listen for trade updates
+    // Listen for trade updates
         socket.on("trade_update", (data) => {
-            // Add the new trade to the trade history table
-            const {price, quantity, buyer_name, buyer_id, seller_name, seller_id, time} = data;
+        // Add the new trade to the trade history table
+            const {
+                price,
+                quantity,
+                buyer_name,
+                buyer_id,
+                seller_name,
+                seller_id,
+                time
+            } = data;
             const tradeTableBody = document.querySelector("#trades-table");
             const newRow = `
                 <tr>
@@ -361,42 +382,42 @@
             `;
             tradeTableBody.insertAdjacentHTML("afterbegin", newRow); // Add the new trade at the top
 
-            // Update portfolio if needed
-            // If buyer, add more contracts and subtract cash
+        // Update portfolio if needed
+        // If buyer, add more contracts and subtract cash
             if (buyer_name === username) {
                 const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
                 const userPortfolioCash = document.querySelector("#user-portfolio-cash");
                 userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) + parseInt(quantity);
                 const newCash = parseInt(userPortfolioCash.innerText) - (parseInt(price) * parseInt(quantity));
-                if(newCash >= 0){
+                if (newCash >= 0) {
                     userPortfolioCash.innerText = `$${newCash}`;
                 } else {
                     userPortfolioCash.innerText = `-$${abs(newCash)}`;
                 }
             }
-            // If seller, subtract contracts and add cash
+        // If seller, subtract contracts and add cash
             if (seller_name === username) {
                 const userPortfolioContracts = document.querySelector("#user-portfolio-contracts");
                 const userPortfolioCash = document.querySelector("#user-portfolio-cash");
                 userPortfolioContracts.innerText = parseInt(userPortfolioContracts.innerText) - parseInt(quantity);
                 const newCash = parseInt(userPortfolioCash.innerText) + (parseInt(price) * parseInt(quantity));
-                if(newCash >= 0){
+                if (newCash >= 0) {
                     userPortfolioCash.innerText = `$${newCash}`;
                 } else {
                     userPortfolioCash.innerText = `-$${abs(newCash)}`;
-                }            
+                }
             }
         });
 
-        // Listen for the leaderboard data when the game ends
+    // Listen for the leaderboard data when the game ends
         socket.on("game_end_leaderboard", (data) => {
             const leaderboard = data.leaderboard;
             displayLeaderboard(leaderboard);
         });
 
-        // Function to display the leaderboard
+    // Function to display the leaderboard
         function displayLeaderboard(leaderboard) {
-            // Create the leaderboard modal
+        // Create the leaderboard modal
             const modalHtml = `
                 <div class="modal fade" id="leaderboardModal" tabindex="-1" aria-labelledby="leaderboardModalLabel" aria-hidden="true">
                     <div class="modal-dialog">
@@ -441,10 +462,10 @@
                 </div>
             `;
 
-            // Append the modal to the body
+        // Append the modal to the body
             document.body.insertAdjacentHTML("beforeend", modalHtml);
 
-            // Show the modal
+        // Show the modal
             const leaderboardModal = new bootstrap.Modal(document.getElementById("leaderboardModal"));
             leaderboardModal.show();
         }
