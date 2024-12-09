@@ -29,8 +29,18 @@
                 <div class="col-lg-4">
                     <div class="dashboard-card bg-light p-4 rounded">
                         <h3 class="dashboard-title">Total Profit/Loss</h3>
-                        <p class="dashboard-value text-success">${{ total_pnl }}</p>
-                        <p class="dashboard-change">Increased by 10%</p>
+                        <p class="dashboard-value text-success">{% if total_pnl >= 0 %}
+                            ${{ total_pnl | round(2) }}
+                        {% else %}
+                            -${{ total_pnl|abs | round(2) }}
+                        {% endif %}</p>
+                    </div>
+                </div>
+                <!-- Games Played Card -->
+                <div class="col-lg-4">
+                    <div class="dashboard-card bg-light p-4 rounded">
+                        <h3 class="dashboard-title">Welcome Back</h3>
+                        <p class="dashboard-value" style="color: black;">{{ username }}</p>
                     </div>
                 </div>
                 <!-- Games Played Card -->
@@ -38,15 +48,6 @@
                     <div class="dashboard-card bg-light p-4 rounded">
                         <h3 class="dashboard-title">Games Played</h3>
                         <p class="dashboard-value">{{ games_played }}</p>
-                        <p class="dashboard-change">Completed 5 new games</p>
-                    </div>
-                </div>
-                <!-- Visitors Online (Placeholder) -->
-                <div class="col-lg-4">
-                    <div class="dashboard-card bg-light p-4 rounded">
-                        <h3 class="dashboard-title">Visitors Online</h3>
-                        <p class="dashboard-value">95,574</p>
-                        <p class="dashboard-change text-success">Increased by 5%</p>
                     </div>
                 </div>
             </div>
@@ -106,7 +107,7 @@
                     <img src="{{ url_for('static', filename='images/connor.jpg') }}" alt="Connor's Photo" class="rounded-circle mb-3" width="120">
                     <h3 class="about-name">Connor</h3>
                     <p class="about-description">
-                        Co-founder and developer of MarketMakingMadness. Connor is passionate about providing liquidity to markets and tightening the bid-ask spread. 
+                        Co-founder and bot overlord of MarketMakingMadness. Connor is passionate about providing liquidity to markets and tightening the bid-ask spread. 
                     </p>
                 </div>
                 <!-- Jesse's Block -->
