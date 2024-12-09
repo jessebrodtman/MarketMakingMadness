@@ -7,14 +7,16 @@ import uuid
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from markets import get_random_market
-from bots import BOTS, create_bot, get_bots_in_lobby
+import bots
+from bots import create_bot, get_bots_in_lobby
 import random
 from datetime import datetime
 import time, threading
 from threading import Lock
 import logging
 
-from globals import db, lobbies, markets, bot_lock
+import globals
+from globals import db, bot_lock
 socketio = None  # Private variable to store the SocketIO instance
 
 def set_socketio(socketio_instance):
@@ -81,7 +83,7 @@ def bot_action(lobby_id):
         with bot_lock:
             print(f"Bot action running for lobby {lobby_id}")
             # Find the lobby to operate in, stop if needed
-            lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+            lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
             if not lobby or lobby["status"] != "in_progress":
                 print(f"Stopping bot action for lobby {lobby_id} (lobby not found or game not in progress)")
                 break
@@ -135,7 +137,7 @@ def countdown_timer(lobby_id, redirect_url):
     """
     while True:
         # Find the lobby
-        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
             print("breaking out of timer")
             break
@@ -154,7 +156,7 @@ def countdown_timer(lobby_id, redirect_url):
             end_game_helper(lobby_id)
             break
 
-# Helper Functions for Databases and Lobbies
+# Helper Functions for Databases and globals.lobbies
 def is_lobby_full(lobby):
     """
     Check if a lobby is full, considering both players and bots
@@ -232,7 +234,7 @@ def get_fair_value(lobby_id):
     Retrieve the fair value of the market for a given lobby
     """
     # Find market and return fair value
-    market = markets.get(lobby_id)
+    market = globals.markets.get(lobby_id)
     if market:
         return market['fair_value']
     raise ValueError(f"No market found for lobby {lobby_id}")  # Error if lobby has no market
@@ -273,7 +275,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
                 db.execute("DELETE FROM orders WHERE id = :id", id=ask["id"])
 
             # Get the buyer and seller names
-            for lobby in lobbies:
+            for lobby in globals.lobbies:
                 if lobby["id"] == game_id:
                     print("Players: ", lobby["players"])
                     buyer_name = next((player["name"] for player in lobby["players"] if player["id"] == str(user_id)), None)
@@ -333,7 +335,7 @@ def execute_trade(game_id, user_id, trade_type, trade_price, trade_quantity):
                 db.execute("DELETE FROM orders WHERE id = :id", id=bid["id"])
 
             # Get the buyer and seller names
-            for lobby in lobbies:
+            for lobby in globals.lobbies:
                 if lobby["id"] == game_id:
                     print("Players: ", lobby["players"])
                     buyer_name = next((player["name"] for player in lobby["players"] if player["id"] == bid["user_id"]), None)
@@ -369,18 +371,17 @@ def cleanup_lobby(lobby_id):
     """
     Remove the lobby and associated data from memory
     """
-    global lobbies, BOTS, markets
 
     # Remove lobby from lobbies array
-    lobbies = [lobby for lobby in lobbies if lobby['id'] != lobby_id]
-    print(lobbies)
+    globals.lobbies = [lobby for lobby in globals.lobbies if lobby['id'] != lobby_id]
+    print(globals.lobbies)
 
     # Remove bots associated with the lobby
-    BOTS = {bot_id: bot for bot_id, bot in BOTS.items() if bot.lobby_id != lobby_id}
+    bots.BOTS = {bot_id: bot for bot_id, bot in bots.BOTS.items() if bot.lobby_id != lobby_id}
 
     # Remove market associated with the lobby
-    if lobby_id in markets:
-        del markets[lobby_id]
+    if lobby_id in globals.markets:
+        del globals.markets[lobby_id]
 
 def cleanup_game_data(game_id, lobby):
     """
@@ -422,7 +423,7 @@ def cleanup_all(lobby_id):
     """
     try:
         # Find the lobby in the global `lobbies` list
-        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
             print(f"No lobby found with ID {lobby_id}. Skipping cleanup.")
             return
@@ -452,7 +453,7 @@ def end_game_helper(lobby_id):
     try:
         # Find the lobby
         print("finding lobby to end")
-        lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+        lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
         if not lobby:
             print("Lobby not found. Unable to end the game.")
             return
@@ -489,7 +490,7 @@ def end_game_helper(lobby_id):
                 ) AS combined
                 GROUP BY user_id
                 ORDER BY pnl DESC
-            """, game_id=lobby_id, fair_value=markets[lobby_id]["fair_value"])
+            """, game_id=lobby_id, fair_value=globals.markets[lobby_id]["fair_value"])
             print("leaderboard generated")
 
             print("converting leaderboard")

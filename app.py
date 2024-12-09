@@ -21,7 +21,8 @@ from utilities import (
     cleanup_all, end_game_helper
 )
 
-from globals import db, lobbies, markets, bot_lock # Import shared state and database connection
+import globals
+from globals import db # Import shared state and database connection
 
 # Configure application
 app = Flask(__name__)
@@ -73,7 +74,7 @@ def add_bot_to_lobby(lobby_id):
     bot_name = f"{bot_name} ({bot_level})"
 
     # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
@@ -104,7 +105,7 @@ def start_bot_trading(lobby_id):
     """
     # Find the lobby
     print("finding lobby for bots")
-    lobby = next((lobby for lobby in lobbies if lobby['id'] == lobby_id), None)
+    lobby = next((lobby for lobby in globals.lobbies if lobby['id'] == lobby_id), None)
     if not lobby:
         flash("Lobby not found. Cannot start trading.", "danger")
         return redirect(url_for('play'))
@@ -243,13 +244,12 @@ def play():
     user_lobby_id = None
 
     # Check if the user is already in a lobby
-    for lobby in lobbies:
+    for lobby in globals.lobbies:
         for player in lobby["players"]:
             if player["name"] == username:
                 user_lobby_id = lobby["id"]
                 break
-
-    return render_template("play.html", lobbies=lobbies, user_lobby_id=user_lobby_id)
+    return render_template("play.html", lobbies=globals.lobbies, user_lobby_id=user_lobby_id)
 
 
 @app.route("/history")
@@ -383,7 +383,7 @@ def create_lobby():
 
     # Check if the user is already in a lobby
     current_lobby_id = None
-    for lobby in lobbies:
+    for lobby in globals.lobbies:
         for player in lobby["players"]:
             if player["name"] == player_name:
                 current_lobby_id = lobby["id"]
@@ -410,7 +410,7 @@ def create_lobby():
 
         # Assign a random market to the lobby
         market = get_random_market()
-        markets[lobby_id] = market  # Store the market in the global markets dictionary
+        globals.markets[lobby_id] = market  # Store the market in the global markets dictionary
 
         # Add to games table
         create_game(lobby_id, market["question"], lobby_name, game_length)
@@ -426,7 +426,7 @@ def create_lobby():
             "market_question": market["question"], 
             "game_length": game_length,
         }
-        lobbies.append(new_lobby)
+        globals.lobbies.append(new_lobby)
 
         # Notify via SocketIO
         socketio.emit("lobby_update", new_lobby)
@@ -450,7 +450,7 @@ def join_lobby(lobby_id):
     # Check if the user is already in a lobby
     print("checking if in lobby")
     current_lobby_id = None
-    for lobby in lobbies:
+    for lobby in globals.lobbies:
         for player in lobby["players"]:
             if player["name"] == player_name:
                 print("found player in lobby")
@@ -464,7 +464,7 @@ def join_lobby(lobby_id):
 
     # Find the lobby
     print("finding lobby")
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
@@ -532,7 +532,7 @@ def join_room_event(data):
 @login_required
 def toggle_ready(lobby_id):
     # Find lobby
-    for lobby in lobbies:
+    for lobby in globals.lobbies:
         if lobby['id'] == lobby_id:
             # Find user
             player_name = session.get('username')
@@ -610,7 +610,7 @@ def game(lobby_id):
     Render the game page for a specific lobby
     """
     # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
@@ -682,7 +682,7 @@ def leave_lobby(lobby_id):
 
     print("finding lobby")
     # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
@@ -739,7 +739,7 @@ def start_game(lobby_id):
     print(f"starting game for lobby {lobby_id}")
 
     # Find the lobby
-    lobby = next((lobby for lobby in lobbies if lobby["id"] == lobby_id), None)
+    lobby = next((lobby for lobby in globals.lobbies if lobby["id"] == lobby_id), None)
     if not lobby:
         flash("Lobby not found", "danger")
         return redirect(url_for("play"))
