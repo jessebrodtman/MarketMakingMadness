@@ -476,7 +476,7 @@ def join_lobby(lobby_id):
         print("user is in lobby")
         # Update their last active timestamp
         existing_player["last_active"] = datetime.now()
-        flash("Welcome back! You have re-entered the lobby.", "success")
+        # flash("Welcome back! You have re-entered the lobby.", "success")
 
         # Check if game has started
         if lobby["status"] == "in_progress":
