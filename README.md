@@ -112,8 +112,4 @@ Error Handling: We implemented extensive error handling for edge cases which wil
 - Disconnects
 - Joining multiple lobbies
 
-
-
-
-
-
+Video Link: https://youtu.be/0U_t6CXrZ-Q
