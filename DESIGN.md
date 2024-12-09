@@ -31,9 +31,9 @@ Custom CSS was applied
 - For specific pages that required unqiue or tailored styling choices
 
 ## Structure and Design Choices
-
+```
 project/
-├── __pycache__/                # Cached Python files (auto-generated)
+├── __pycache__/                # Cached Python files (auto-generated) 
 ├── flask_session/              # Flask session data (auto-generated during runtime)
 ├── static/                     # Static files for frontend (CSS, images)
 │   ├── images/                 # Images used across the application
@@ -67,7 +67,7 @@ project/
 ├── requirements.txt            # Python dependencies for the project
 ├── runtime.txt                 # Specifies Python runtime version
 ├── utilities.py                # Helper functions and shared logic
-
+```
 Below explains some of the structuring choices
 
 static/
