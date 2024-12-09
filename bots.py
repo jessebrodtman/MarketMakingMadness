@@ -163,10 +163,12 @@ class Bot:
         if ask_price <= bid_price:
             ask_price = bid_price + random.uniform(0.5, 1)
 
+        # Update bot's current bid and ask
         self.current_bid = max(0, bid_price)
         self.current_ask = max(0, ask_price)
 
         return round(self.current_bid, 2), round(self.current_ask, 2)
+
 
 
 
@@ -182,10 +184,33 @@ class Bot:
         # Adjust trading probability based on market activity
         trade_frequency_modifier = self._get_trade_frequency_modifier(last_trades)
 
-        # Adjust based on spread and depth
+        # Trading margin logic
+        trade_margin_multiplier = {
+            "easy": 0.1,
+            "medium": 0.05,
+            "hard": 0.02,
+            "Jane Street": 0.01,
+        }
+        trade_margin = trade_margin_multiplier.get(self.level, 0.05) * self.fair_value
+
+        # Determine trade quantity with a preference for smaller trades
+        trade_quantity = self._calculate_trade_quantity()
+
+        # Decide to buy if the best ask is favorable
+        if best_ask and best_ask["price"] <= self.fair_value - trade_margin:
+            # Check the bot is not trading with its own ask
+            if self.current_ask is None or best_ask["price"] < self.current_ask:
+                return {"type": "buy", "price": best_ask["price"], "quantity": trade_quantity}
+
+        # Decide to sell if the best bid is favorable
+        if best_bid and best_bid["price"] >= self.fair_value + trade_margin:
+            # Check the bot is not trading with its own bid
+            if self.current_bid is None or best_bid["price"] > self.current_bid:
+                return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
+
+        # Adjust based on spread and activity
         spread = (best_ask["price"] - best_bid["price"]) if best_ask and best_bid else None
         if spread and spread > random.uniform(1, 5):  # Favor trading in wider spreads
-            trade_quantity = self._calculate_trade_quantity()
             if random.random() < trade_frequency_modifier:
                 if best_ask and random.random() < 0.6:
                     return {"type": "buy", "price": best_ask["price"], "quantity": trade_quantity}
@@ -193,6 +218,7 @@ class Bot:
                     return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
 
         return None
+
 
     def _calculate_trade_quantity(self):
         """
