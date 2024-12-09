@@ -169,9 +169,6 @@ class Bot:
 
         return round(self.current_bid, 2), round(self.current_ask, 2)
 
-
-
-
     def decide_to_trade(self):
         """
         Decide whether the bot will execute a trade based on market conditions,
@@ -209,13 +206,21 @@ class Bot:
                 return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
 
         # Adjust based on spread and activity
+        # Adjust based on spread and activity
         spread = (best_ask["price"] - best_bid["price"]) if best_ask and best_bid else None
-        if spread and spread > random.uniform(1, 5):  # Favor trading in wider spreads
-            if random.random() < trade_frequency_modifier:
-                if best_ask and random.random() < 0.6:
+        if spread:
+            # Calculate relative thresholds based on fair value
+            tight_spread_threshold = 0.02 * self.fair_value  # 2% of the fair value
+            wide_spread_threshold = 0.05 * self.fair_value  # 5% of the fair value
+
+            if spread < tight_spread_threshold and self.market_maturity > 10:  # Favor tight spreads in mature markets
+                return {"type": "buy", "price": best_ask["price"], "quantity": trade_quantity}
+            elif spread > wide_spread_threshold and random.random() < trade_frequency_modifier:  # Favor wide spreads early
+                if random.random() < 0.6:
                     return {"type": "buy", "price": best_ask["price"], "quantity": trade_quantity}
-                elif best_bid and random.random() < 0.4:
+                else:
                     return {"type": "sell", "price": best_bid["price"], "quantity": trade_quantity}
+
 
         return None
 
@@ -282,7 +287,7 @@ class Bot:
             return False
 
         # Only update if sufficient time has passed since the last trade
-        if time_since_last_trade < 40:  # Increase this threshold to further slow down
+        if time_since_last_trade < 30:  # Increase this threshold to further slow down
             return False
 
         # Check if the bot's current quotes are still competitive
