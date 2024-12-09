@@ -152,3 +152,20 @@ Game:
 - Adaptive Behavior: Bots dynamically adjust their estimated fair value based on recent trades, ensuring they remain active and relevant even if human players influence prices away from the initial fair value.
 - By balancing market-making with dynamic trading behavior, the bots contribute to both liquidity and market efficiency while ensuring that the game remains competitive and engaging for human players.
 
+
+## Challenges and Solutions
+
+- Challenge: Unnatural Market Dynamics from Overactive Bots.
+  - Initially, bots traded too frequently, causing erratic market behavior and diminishing the realism of market dynamics.
+  - Solution: Introduced logic to slow down bot trades, emphasizing meaningful and well-timed transactions. Bots now prioritize favorable trades and maintain balance in market activity.
+- Challenge: Maintaining Market Depth Without Convergence
+  - Markets quickly converged as bots over-tightened spreads by repeatedly improving bids/asks.
+  - Solution: Implemented trading margins and reluctance logic, where bots reduce aggressive spread tightening, especially if they already hold the best bid or ask.
+- Challenge: Real-Time Synchronization Across Clients
+  - Ensuring consistent market state and game updates for all participants was complex due to simultaneous actions by multiple users and bots.
+  - Solution: Used Flask-SocketIO to broadcast updates in real-time, enabling synchronized views of bids, asks, and trade histories across all connected clients.
+
+## Future Improvements
+- Enhanced Bot Intelligence: Develop more advanced bot strategies, such as dynamic fair value estimation using machine learning, to adapt better to changing market conditions and player behavior.
+- Expanded Trading Features: Introduce advanced trading options like batch order placements, market-making tools, and derivatives (e.g., options and futures) to add complexity and engagement.
+- Multiplayer Improvment: Allow lobby hosts to customize game settings, such as trade limits, bot difficulty levels, and market dynamics, to tailor the experience to the preferences of players.
