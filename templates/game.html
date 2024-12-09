@@ -32,16 +32,16 @@
                         <table class="game-market-table table table-hover">
                             <thead>
                                 <tr>
-                                    <th class="text-center">Quantity</th>
                                     <th class="text-center">Price</th>
+                                    <th class="text-center">Quantity</th>
                                     <th class="text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="asks-table">
                                 {% for ask in asks[:10] %}
                                     <tr>
-                                        <td class="text-center">{{ ask.quantity }}</td>
                                         <td class="text-center text-danger">{{ ask.price }}</td>
+                                        <td class="text-center">{{ ask.quantity }}</td>
                                         <td class="text-center">
                                             <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST">
                                                 <input type="hidden" name="type" value="buy">
