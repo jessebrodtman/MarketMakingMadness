@@ -294,8 +294,8 @@
             asks.forEach((ask) => {
                 const newRow = `
                     <tr>
-                        <td class="text-center">${ask.quantity}</td>
-                        <td class="text-center text-danger">${ask.price}</td>
+                        <td class="text-center">${ask.price}</td>
+                        <td class="text-center text-danger">${ask.quantity}</td>
                         <td class="text-center">
                             <form action="{{ url_for('player_trade', lobby_id=lobby.id) }}" method="POST">
                                 <input type="hidden" name="type" value="buy">
